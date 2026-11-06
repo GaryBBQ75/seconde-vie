@@ -1,0 +1,36 @@
+name: Tests
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: secondevie_test
+          POSTGRES_USER: secondevie_test
+          POSTGRES_PASSWORD: local-tests-only
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U secondevie_test -d secondevie_test"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      TEST_DATABASE_URL: postgresql://secondevie_test:local-tests-only@127.0.0.1:5432/secondevie_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm test
