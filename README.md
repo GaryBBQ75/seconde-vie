@@ -58,3 +58,6 @@ La version fonctionnelle la plus récente est dans `demo/`, synchronisée avec l
 Les tests incluent les accès, la séparation de structures, l’administration, les lots, les transferts et la caisse. Voir [la revue fonctionnelle et la comparaison](docs/REVUE-2026-11-07.md).
 
 La finalisation inclut la clôture de caisse, les remboursements, les documents commerciaux et les cotisations. Voir [la recette pilote](docs/RECETTE-PILOTE.md) pour les parcours vérifiés, la préparation des modules et les vérifications de matériel à réaliser dans une ressourcerie.
+
+
+Le planning dispose désormais de vues responsable et membre : préparation en brouillons, publication, répétition, copie de semaine, confirmations et disponibilités. L’entrée [de test sans mot de passe](https://seconde-vie-atelier.gary-legrill.chatgpt.site/?demo=1#planning) utilise exclusivement les profils fictifs et le stockage du navigateur. Le rôle Coordination du planning peut être délégué sans ouvrir les comptes. Voir [la recette planning](docs/PLANNING.md).

@@ -25,7 +25,7 @@ Les informations ne sont saisies qu’une fois. Les modules réutilisent les mê
 | --- | --- |
 | Atelier de réparation | Interventions et temps passé dans l’historique de la fiche objet |
 | Collectes et livraisons | Tournées, étapes, créneaux et statut |
-| Planning de l’équipe | Créneaux des salariés et bénévoles |
+| Planning de l’équipe | Semaine, vue par personne et liste, affectation collective, répétition et copie de semaine, brouillons et publication, réponses personnelles et disponibilités |
 | Caisse interne | Ouverture par site, fond initial, ventes, mouvements d’espèces, comptage, écart motivé et clôture figée ; annulation ou remboursement intégral tracé avec retour des objets au contrôle |
 | Sélection pour la vitrine | Sélection interne des objets prêts, sans publication e-commerce |
 | Devis et factures | Brouillons, mentions de la structure, émission numérotée et figée, conversion d’un devis, règlements, avoir intégral, remboursement enregistré, impression/PDF navigateur et CSV |
@@ -76,3 +76,20 @@ Les tests utilisent le même moteur de règles et les mêmes migrations SQL dans
 Node.js 24 est requis pour le simulateur SQLite local : `npm ci`, `npm test`, `npm run dev` et `npm run build`.
 Le simulateur conserve ses données dans `.local/`, ignoré par Git. L’identité fictive n’est injectée que par `scripts/dev.mjs`, jamais par le Worker de production.
 Les migrations de `drizzle/` sont appliquées à la publication. Après application, ajouter une nouvelle migration sans modifier l’historique.
+
+
+## Planning : responsable et équipe
+
+La coordination dispose d’une vue hebdomadaire, d’une vue par personne et d’une liste. Les filtres de site, de personne et de poste restent explicites. Les créneaux peuvent être affectés à plusieurs membres, répétés jusqu’à huit semaines et copiés vers la semaine suivante en brouillons. Une collision entre sites ou une indisponibilité bloque l’opération entière ; une dérogation doit être expliquée. La publication de la sélection rend les brouillons visibles aux personnes concernées.
+
+Le rôle Coordination du planning permet de gérer ces affectations et de lire les déclarations sans donner accès à l’administration des comptes. Chaque membre dispose de ses créneaux, peut confirmer sa présence ou signaler un empêchement, et déclarer ses disponibilités ou indisponibilités. La coordination voit ces réponses ; un signalement n’annule pas automatiquement une affectation. Une modification d’horaire, de site, de personne ou de poste demande une nouvelle confirmation.
+
+La vue Équipe ne contient que les créneaux publiés et leurs informations pratiques. Les notes de disponibilité, messages de réponse, brouillons et motifs de dérogation restent réservés à la personne concernée et/ou à la coordination suivant leur usage. Les annulations sont conservées dans l’historique et restent visibles dans le planning personnel.
+
+Les saisies utilisent le fuseau de la structure, affiché dans l’interface. Une copie de semaine conserve l’heure locale lors d’un changement d’heure. Les heures inexistantes ou ambiguës doivent être corrigées. L’export personnel `.ics` contient la semaine choisie et les annulations avec un identifiant stable ; il s’agit d’un import ponctuel, sans synchronisation ou notification externe automatique. Les durées affichées sont des heures prévues, pas un suivi du temps de travail réalisé.
+
+## Accès direct pendant les tests
+
+L’entrée `/?demo=1#planning` présente les profils fictifs en un clic, responsable compris, sans mot de passe ni code. Le changement de profil conserve la page si le nouveau rôle y a accès. Les données de démonstration restent dans le navigateur. Les anciens formulaires API à code restent compatibles pour les tests existants ; ils ne sont plus requis par l’interface de démonstration.
+
+Cet accès direct n’est pas une authentification de production. L’espace partagé `/` utilise toujours l’identité Sites et ses permissions serveur. Son audience est préservée et aucun profil de démonstration ne donne accès aux données D1/R2.

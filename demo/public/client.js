@@ -15,7 +15,9 @@ export function leaveStation() {sessionStorage.removeItem('seconde-vie-station')
 export function isModuleEnabled(config,key) {return demoMode || config?.modules?.includes(key);}
 function cache(route,value) {
   if(route==='/snapshot') {
-    for(const type of ['stock','team','sites','transfers','contacts']) for(const row of value[type] || []) versions.set(type+'/'+row.id,row._version);
+    for(const type of ['stock','team','sites','transfers','contacts','shifts']) for(const row of value[type] || []) versions.set(type+'/'+row.id,row._version);
+  } else if(route==='/planning') {
+    for(const type of ['shifts','availability'])for(const row of value[type] || [])versions.set(type+'/'+row.id,row._version);
   } else {
     const type=route.split('/')[1]?.split('?')[0];
     for(const row of Array.isArray(value) ? value : [value]) if(row?.id) versions.set(type+'/'+row.id,row._version);

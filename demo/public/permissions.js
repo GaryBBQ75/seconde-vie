@@ -5,7 +5,7 @@ export const organisations = {
 
 export const roleNames = {
   admin:'Responsable', reception:'Réception', tri:'Tri', atelier:'Atelier', stock:'Stock',
-  vente:'Caisse', rapports:'Gestion et rapports', collecte:'Tournées', registre:'Journal des entrées', administration:'Administration',
+  vente:'Caisse', rapports:'Gestion et rapports', collecte:'Tournées', registre:'Journal des entrées', administration:'Administration', planning:'Coordination du planning',
 };
 
 export const pageRoles = {

@@ -48,3 +48,8 @@ Les écritures de règlement, remboursement ou cotisation sont un suivi administ
 ## Périmètre différé
 
 TVA sur marge, transmission des factures à une plateforme agréée, certification fiscale de caisse, remboursements et avoirs partiels, plusieurs tiroirs par site, connecteurs e-commerce et exports normés propres à chaque organisme. La V1 ne doit pas être présentée comme validée sur ces fonctions.
+
+
+## Refonte du planning et accès de test
+
+Voir [le parcours planning](PLANNING.md) : semaine, vue par personne et liste, brouillons, publication, répétition, copie, confirmations, déclarations et agenda. La démonstration donne maintenant accès aux profils en un clic, sans code ni mot de passe. Le total actuel est de 64 tests à la racine, dont 63 pour l’application hébergée.

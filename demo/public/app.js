@@ -1,4 +1,4 @@
-import { canOpen as baseCanOpen, hasRole, roleNames, organisations, demoMembers, demoAdminEmail, demoPassword, demoPhoto } from './access.js';
+import { canOpen as baseCanOpen, hasRole, roleNames, organisations, demoPhoto } from './access.js';
 import { discountCents } from './checkout.js';
 import { readBasket, saveBasket } from './basket.js';
 import { readIntakeDraft, saveIntakeDraft, clearIntakeDraft } from './intake-draft.js';
@@ -7,6 +7,7 @@ import { api, demoMode, selectWorkspace, leaveStation, isModuleEnabled, currentR
 import { setupWorkspace, corePages } from './foundation.js';
 import { moduleForPage as optionalModuleForPage, firstAvailablePage } from './modules.js';
 import { operationsPages } from './operations-pages.js';
+import { mountPlanning } from './planning-page.js';
 import { code128Svg } from './barcode.js';
 import { toString as qrSvg } from './vendor/qrcode/index.js';
 import { icon } from './icons.js';
@@ -208,7 +209,8 @@ async function startWorkspace(fromSignIn = false) {
     ?? (me.org === 'passages' ? localStorage.getItem('secondevie-site') || '' : '');
   await refresh();
   const roleHome = firstAvailablePage(me,config,{demo:demoMode});
-  go(fromSignIn && !admin() ? roleHome : location.hash.slice(1) || defaultPage(), true);
+  const requested=location.hash.slice(1);
+  go(fromSignIn && !admin() ? canOpen(me,requested) ? requested : roleHome : requested || defaultPage(), true);
 }
 async function changed(message, draft) {
   if (dialog.hasAttribute('open')) closeDialog();
@@ -2278,34 +2280,7 @@ function toursPage(main) {
 }
 
 function planningPage(main) {
-  const list = shifts.filter(s => +new Date(s.ends_at) >= Date.now() && (!siteFilter || s.site_id === siteFilter));
-  main.innerHTML = header('Planning', 'Retrouvez qui est prévu, où et sur quel poste.', admin() ? button('Ajouter un créneau','plus','new-shift','primary') : '')
-    + (list.length ? '<div class="cards">' + list.map(s=>`<article class="card"><div class="card-line"><h2>${esc(s.member_name)}</h2><span class="pill pret">${esc(s.activity)}</span></div>
-    <p>${esc(s.site_name)}</p><p>${date(s.starts_at)} → ${date(s.ends_at)}</p>
-    ${admin()?button('Supprimer le créneau',null,'shift-'+s.id,'danger'):''}</article>`).join('') + '</div>' : '<div class="surface empty">Aucun créneau à venir pour ces sites.</div>');
-  on('new-shift',newShift);
-  list.forEach(s=>on('shift-'+s.id,()=>{
-    showDialog('Supprimer le créneau',`<form id="remove-shift"><p class="help">${esc(s.member_name)} · ${date(s.starts_at)}</p>${formEnd('Confirmer la suppression')}</form>`);
-    formSubmit('remove-shift',async()=>{
-      await api('/shifts/'+s.id,{method:'DELETE'});
-      await changed('Créneau supprimé.');
-    });
-  }));
-}
-function newShift() {
-  showDialog('Ajouter un créneau',`<form id="shift-form">
-    ${field('Personne',`<select name="member_id" required>${option('','Choisir une personne')}${team.filter(m=>m.active).map(m=>option(m.id,m.name)).join('')}</select>`)}
-    <div class="form-row">${field('Site',`<select name="site_id">${siteOptions(workingSite()?.id)}</select>`)}
-    ${field('Activité',`<select name="activity">${config.activities.map(a=>option(a,a)).join('')}</select>`)}</div>
-    <div class="form-row">${field('Début',input('starts_at','type="datetime-local" required'))}${field('Fin',input('ends_at','type="datetime-local" required'))}</div>
-    ${formEnd('Ajouter au planning')}</form>`);
-  formSubmit('shift-form',async d=>{
-    const body = Object.fromEntries(d);
-    body.starts_at = new Date(body.starts_at).toISOString();
-    body.ends_at = new Date(body.ends_at).toISOString();
-    await api('/shifts',{method:'POST',body});
-    await changed('Créneau ajouté.');
-  });
+  mountPlanning(main,{api,esc,header,field,input,button,formEnd,formSubmit,showDialog,changed,notice,me,config,sites,siteFilter,printContent,roleNames}).catch(report);
 }
 function sitePage(main) {
   main.innerHTML = header('Sites et zones', 'Organisez les lieux et nommez leurs emplacements.', admin() ? button('Ajouter un site','plus','new-site','primary') : '')
@@ -2408,51 +2383,26 @@ function profileAvatar(member) {
 function showSignIn(initialOrg = 'passages') {
   let org = initialOrg;
   root.innerHTML = `<main class="content sign-in">
-    <img src="/mark.svg" alt="" width="48" height="48"><h1>Seconde Vie</h1>
-    <p class="help">Choisissez votre ressourcerie et votre profil. Utilisez uniquement des données fictives.</p>
+    <img src="/mark.svg" alt="" width="48" height="48"><h1>Tester Seconde Vie</h1>
+    <p class="help">Accès direct aux profils de test, sans mot de passe ni code. Les données de cette démonstration restent sur ce navigateur.</p>
     ${field('Ressourcerie', `<select id="login-org">${Object.entries(organisations).map(([id,name]) => option(id,name,org)).join('')}</select>`)}
-    <section aria-labelledby="login-team-title"><h2 id="login-team-title">Poste partagé</h2><div id="login-team" class="cards"></div></section>
-    <details id="login-admin"><summary>Connexion responsable</summary><div id="login-admin-fields"></div></details>
+    <section aria-labelledby="login-team-title"><h2 id="login-team-title">Choisir un profil</h2><div id="login-team" class="cards"></div></section>
+    <p class="help">Utilisez uniquement des données fictives. Le bouton de profil permet de passer du responsable à un membre de l’équipe pendant les tests.</p>
   </main>`;
   const profiles = root.querySelector('#login-team');
-  const adminFields = root.querySelector('#login-admin-fields');
-  async function authenticate(body) {
-    await api('/login',{method:'POST',body:{...body,org}});
-    await startWorkspace(true);
-  }
   async function drawProfiles() {
-    const selected = org;
-    const people = await api('/profiles?org='+encodeURIComponent(org));
-    if (selected !== org || !profiles.isConnected) return;
-    profiles.innerHTML = people.map(member => `<button type="button" class="btn profile-choice" id="profile-${esc(member.id)}">
-      ${profileAvatar(member)}<span><strong>${esc(member.name)}</strong><small>${esc(member.roles.map(role => roleNames[role]).join(' · '))}</small></span>
-    </button>`).join('') || '<p class="help">Aucun profil terrain actif.</p>';
-    for (const member of people) on('profile-'+member.id, () => {
-      const sample = demoMembers[org].find(person => person.id === member.id);
-      showDialog(member.name, `<form id="profile-pin" class="stack">
-        ${field('Code du profil',input('pin','type="password" inputmode="numeric" autocomplete="off" pattern="[0-9]{4,6}" maxlength="6" required'))}
-        ${sample && member.demo_hint ? `<p class="help">Code initial de démo ${esc(sample.pin)}.</p>`
-          : '<p class="help">Le code de ce profil a déjà été défini. Un responsable peut le modifier dans Équipe.</p>'}
-        ${formEnd('Ouvrir la session')}</form>`);
-      dialog.querySelector('[name=pin]').focus();
-      formSubmit('profile-pin', async data => {
-        await authenticate({member:member.id,pin:data.get('pin')});
-        closeDialog();
-      });
+    const selected=org,people=await api('/profiles?org='+encodeURIComponent(org)+'&test_access=1');
+    if(selected!==org || !profiles.isConnected)return;
+    profiles.innerHTML=people.map(member=>`<button type="button" class="btn profile-choice" id="profile-${esc(member.id)}">
+      ${profileAvatar(member)}<span><strong>${esc(member.name)}</strong><small>${esc(member.roles.map(role=>roleNames[role]).join(' · '))}</small></span>
+    </button>`).join('') || '<p class="help">Aucun profil actif.</p>';
+    for(const member of people)on('profile-'+member.id,async event=>{
+      const control=event.currentTarget;control.disabled=true;
+      try {await api('/login',{method:'POST',body:{org,test_access:true,test_member:member.id}});await startWorkspace(true);}
+      catch(error){control.disabled=false;report(error);}
     });
-    adminFields.innerHTML = `<form id="admin-login" class="stack">
-      ${field(demoMode ? 'E-mail fictif' : 'E-mail du compte de connexion',input('email',`type="email" value="${esc(demoAdminEmail[org])}" required`))}
-      ${field('Mot de passe de démo',input('password','type="password" required'))}
-      <p class="help">Mot de passe de démo <strong>${demoPassword}</strong></p>
-      ${formEnd('Se connecter')}</form>`;
-    formSubmit('admin-login',data => authenticate(Object.fromEntries(data)));
   }
-  on('login-org', event => {
-    org = event.target.value;
-    profiles.replaceChildren();
-    adminFields.replaceChildren();
-    return drawProfiles();
-  }, 'change');
+  on('login-org',event=>{org=event.target.value;profiles.replaceChildren();drawProfiles().catch(report);},'change');
   drawProfiles().catch(report);
 }
 

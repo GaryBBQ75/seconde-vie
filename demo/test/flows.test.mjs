@@ -34,6 +34,13 @@ test('accès refusé sans session et avec un code incorrect',async () => {
   await rejects(() => api('/stock'),401);
   await rejects(() => write('/login',{org:'passages',member:demoMembers.passages[0].id,pin:'incorrect'}),401);
 });
+test('mode test : responsable et opérateur accessibles en un clic sans mot de passe ni code',async()=>{
+  const profiles=await api('/profiles?org=passages&test_access=1');const manager=profiles.find(row=>row.roles.includes('admin')),worker=profiles.find(row=>!row.roles.includes('admin'));
+  assert(manager && worker);assert(profiles.every(row=>!Object.hasOwn(row,'pin')));
+  await write('/login',{org:'passages',test_access:true,test_member:manager.id});assert((await api('/me')).roles.includes('admin'));
+  await write('/login',{org:'passages',test_access:true,test_member:worker.id});assert.equal((await api('/me')).id,worker.id);
+  await rejects(()=>write('/login',{org:'passages',test_access:true,test_member:'inconnu'}),401);
+});
 test('profils et équipe ne divulguent pas les codes',async () => {
   const profiles = await api('/profiles?org=passages');
   assert(profiles.every(profile => !Object.hasOwn(profile,'pin')));

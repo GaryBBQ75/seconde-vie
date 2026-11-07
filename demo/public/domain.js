@@ -8,6 +8,7 @@ import { catalogImages, normalizeScanCode } from './catalog.js';
 import { itemPhotos, maxItemPhotos } from './photos.js';
 import { acceptedCategories, colors, pictograms } from './categories.js';
 import { operationMethods, runOperation, openRegister } from './operations.js';
+import { planningMethods, planningOperation } from './planning-domain.js';
 
 
 export function createBusinessAPI({localStorage,sessionStorage,origin='https://seconde-vie.invalid',shared=false,organisationNames=defaultOrganisations}) {
@@ -359,23 +360,6 @@ function getOrEditResource(resource, key, method, body, state, me) {
       for (const shift of state.shifts.filter(shift => shift.member_id === existing.id)) shift.member_name = existing.name;
     }
     else rows.push({id:id(),...changes});
-  } else if (method === 'DELETE') {
-    find(rows, key, 'Créneau introuvable.');
-    state.shifts = rows.filter(row => row.id !== key);
-  } else {
-    const start = new Date(body.starts_at), end = new Date(body.ends_at);
-    if (!Number.isFinite(+start) || !Number.isFinite(+end) || end <= start) error(400, 'Choisissez un créneau valide.');
-    if (!seed.config.activities.includes(body.activity)) error(400, 'Choisissez une activité valide.');
-    const starts_at = start.toISOString(), ends_at = end.toISOString();
-    if (rows.some(s => s.member_id === body.member_id && s.starts_at < ends_at && s.ends_at > starts_at)) {
-      error(409, 'Cette personne est déjà prévue sur ce créneau.');
-    }
-    const member = find(state.team, body.member_id, 'Personne introuvable.');
-    if (!member.active) error(400, 'Cette personne est désactivée.');
-    const site = find(state.sites, body.site_id, 'Site introuvable.');
-    rows.push({ id:id(), member_id:member.id,site_id:site.id,activity:body.activity,starts_at,ends_at,
-      member_name:member.name, site_name:site.name });
-    rows.sort((a,b) => a.starts_at.localeCompare(b.starts_at));
   }
 }
 
@@ -439,12 +423,14 @@ async function demoRequest(path, options = {}) {
 function requestDemo(path, { method = 'GET', body } = {}) {
   const { pathname, searchParams } = new URL(path, origin);
   const [resource, key, action] = pathname.slice(1).split('/');
+  if(shared && ['login','profiles','logout'].includes(resource))error(405,'Utilisez votre compte connecté pour l’espace partagé.');
   const methods = {
     ...operationMethods,
+    ...planningMethods,
     profiles:['GET'],login:['POST'],logout:['POST'],me:['GET'],config:['GET'],cashiers:['GET'],
     'cash-station':['POST'],storefront:['GET'],activity:['GET'],tours:['GET','POST','PATCH'],
     sales:['GET','POST'],stock:['GET','POST'],transfers:['GET','POST'],sites:['GET','POST','PATCH'],
-    team:['GET','POST','PATCH'],shifts:['GET','POST','DELETE'], contacts:['GET','POST','PATCH'],
+    team:['GET','POST','PATCH'], contacts:['GET','POST','PATCH'],
   };
   if (!methods[resource]) error(404, 'Action indisponible dans la démo.');
   if (!methods[resource].includes(method)) error(405, 'Action indisponible.');
@@ -455,14 +441,15 @@ function requestDemo(path, { method = 'GET', body } = {}) {
     error(405, 'Action indisponible.');
   if (resource === 'profiles' && method === 'GET') {
     const state = loadOrg(searchParams.get('org'));
-    return state.team.filter(member => member.active && !member.roles.includes('admin'))
+    return state.team.filter(member => member.active && (searchParams.get('test_access')==='1' || !member.roles.includes('admin')))
       .map(({id,name,roles,photo,pin}) => ({id,name,roles,photo,
         demo_hint:demoMembers[searchParams.get('org')].some(member => member.id === id && member.pin === pin)}));
   }
   if (resource === 'login' && method === 'POST') {
     const org = body?.org;
     const state = loadOrg(org);
-    const member = state.team.find(member => member.active && (body.member
+    const member = state.team.find(member => member.active && (!shared && body.test_access===true
+      ? member.id===body.test_member : body.member
       ? !member.roles.includes('admin') && member.id === body.member && member.pin === body.pin
       : member.roles.includes('admin') && member.email.toLowerCase() === body.email?.trim().toLowerCase()
         && body.password === demoPassword));
@@ -515,6 +502,10 @@ function requestDemo(path, { method = 'GET', body } = {}) {
       }
       return key ? find(rows,key,'Fiche introuvable.') : rows.map(listRow);
     }
+  }
+  if(Object.hasOwn(planningMethods,resource)) {
+    const value=planningOperation({path:pathname,method,body,state,me,activities:seed.config.activities,searchParams});
+    if(method!=='GET')save(state,identity.org);return value;
   }
   if(Object.hasOwn(operationMethods,resource)) {
     const value=runOperation({path:pathname,method,body,state,me,createStock:newStock,record});
@@ -604,7 +595,7 @@ function requestDemo(path, { method = 'GET', body } = {}) {
     if (method === 'GET') return state.transfers;
     if (action === 'receive') arrive(find(state.transfers,key,'Transfert introuvable.'),body,state,me);
     else result = sendTransfer(body,state,me);
-  } else if (['sites','team','shifts'].includes(resource)) {
+  } else if (['sites','team'].includes(resource)) {
     if (resource === 'team' || method !== 'GET') requireRole(me,'admin');
     result = getOrEditResource(resource,key,method,body,state,me);
     if (method === 'GET') return resource === 'team' ? result.map(withoutPin) : result;

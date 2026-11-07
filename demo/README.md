@@ -27,3 +27,7 @@ Dans GitHub, cette application reste dans `demo/` pour préserver l’historique
 La caisse interne comprend ouverture par site, fond initial, mouvements d’espèces, comptage et clôture, annulation/remboursement intégral tracé et retour au contrôle. Les modules Devis et factures et Adhésions et cotisations se règlent séparément. Le rôle Administration est distinct de la caisse. L’import CSV de stock appartient au socle et nécessite le rôle Responsable.
 
 Les documents émis sont figés et numérotés ; les règlements sont enregistrés sans déclencher de paiement externe. Les rapports calculent les recettes nettes après remboursements. Les journaux financiers ne peuvent pas être réécrits par une restauration. Les limites fiscales, les conditions de reprise et les fonctions hors périmètre sont détaillées dans `CORE.md`.
+
+## Planning et tests sans mot de passe
+
+Ouvrir `/?demo=1#planning` et choisir un profil fictif, sans code ni mot de passe. Le responsable prépare, copie et publie les semaines ; les membres confirment leurs créneaux et déclarent leurs disponibilités. Le rôle Coordination du planning délègue la gestion sans ouvrir l’administration des comptes. Les données de cette démonstration restent locales au navigateur ; l’espace partagé garde son identité et ses droits serveur.

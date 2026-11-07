@@ -1,5 +1,6 @@
 import { hasRole } from './permissions.js';
 import { parseCSV, csvMoney } from './csv.js';
+import {uuid} from './identifiers.js';
 
 export const operationCollections=['cashSessions','refunds','documents','memberships','businessProfiles'];
 export const operationMethods={registers:['GET','POST'],refunds:['GET','POST'],documents:['GET','POST','PATCH'],memberships:['GET','POST','PATCH'],'billing-profile':['GET','PATCH'],'stock-import':['POST']};
@@ -10,7 +11,6 @@ const date=value=>{const parsed=new Date(value+'T12:00:00Z');if(typeof value!=='
 const find=(rows,id)=>rows.find(row=>row.id===id) || fail(404,'Enregistrement introuvable.');
 const requireRole=(me,...roles)=>{if(!hasRole(me,...roles))fail(403,'Vous n’avez pas accès à cet outil.');};
 const stamp=me=>({created_at:new Date().toISOString(),operator_id:me.id,operator_name:me.name});
-const uuid=()=>crypto.randomUUID();
 const today=state=>new Intl.DateTimeFormat('en-CA',{timeZone:state.settings?.timeZone || 'Europe/Paris',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
 const payments=['Espèces','Carte','Virement','Chèque','Autre'];
 const siteAccess=(state,me,id)=>{const site=find(state.sites,id);if(me.cash_station && me.cash_station.site_id!==id)fail(403,'Utilisez le site du poste caisse.');return site;};

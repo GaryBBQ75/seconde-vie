@@ -3,8 +3,9 @@ import seed from '../public/seed.js';
 import { hasRole, pageRoles } from '../public/permissions.js';
 import { modules, requiredModule } from '../public/modules.js';
 import { operationCollections } from '../public/operations.js';
+import { planningCollections } from '../public/planning-domain.js';
 
-const collections = ['sites','stock','team','transfers','shifts','sales','tours','contacts','audit',...operationCollections];
+const collections = ['sites','stock','team','transfers','shifts','sales','tours','contacts','audit',...operationCollections,...planningCollections];
 export const modulePages = Object.fromEntries(Object.entries(modules).map(([key,value])=>[key,value.pages]));
 export const defaultSettings = {
   currency:'EUR',locale:'fr-FR',country:'FR',timeZone:'Europe/Paris',type:'ressourcerie',
@@ -235,7 +236,7 @@ function validateBackup(body,workspace,state,actor) {
   const imported=body.state;
   const next={settings:validateSettings(imported.settings || {},state.settings),customCategories:imported.customCategories || []};
   for(const type of collections) {
-    const source=imported[type] ?? (operationCollections.includes(type)?[]:undefined);
+    const source=imported[type] ?? ([...operationCollections,...planningCollections].includes(type)?[]:undefined);
     if(!Array.isArray(source) || source.length>10000) fail(400,'Sauvegarde incomplète ou trop volumineuse.');
     next[type]=source;
     const ids=new Set();
@@ -271,6 +272,11 @@ function validateBackup(body,workspace,state,actor) {
   for(const transfer of next.transfers) if(!sites.has(transfer.origin_id) || !sites.has(transfer.destination_id)
     || !Array.isArray(transfer.lines) || transfer.lines.some(line=>!next.stock.some(row=>row.id===line.id))) fail(400,'Transfert invalide.');
   next.shifts=next.shifts.filter(row=>sites.has(row.site_id) && state.team.some(member=>member.id===row.member_id));
+  for(const row of next.shifts) {
+    if(!Number.isFinite(+new Date(row.starts_at)) || !Number.isFinite(+new Date(row.ends_at)) || row.ends_at<=row.starts_at || !seed.config.activities.includes(row.activity)
+      || row.publication && !['draft','published'].includes(row.publication) || row.response && !['pending','confirmed','unavailable'].includes(row.response))fail(400,'Planning invalide dans la sauvegarde.');
+  }
+  for(const row of next.availability)if(!state.team.some(member=>member.id===row.member_id) || !['available','unavailable'].includes(row.kind) || !Number.isFinite(+new Date(row.starts_at)) || !Number.isFinite(+new Date(row.ends_at)) || row.ends_at<=row.starts_at)fail(400,'Disponibilités invalides dans la sauvegarde.');
   return next;
 }
 
@@ -318,6 +324,8 @@ export async function core(request,env) {
       const [,resource,itemId]=path.split('/');
       const collection={registers:'cashSessions','billing-profile':'businessProfiles'}[resource] || resource;
       const current=state[collection]?.find?.(row=>row.id===itemId);
+      if(current && resource==='shifts' && !hasRole(me,'planning') && !(path.endsWith('/respond') && current.member_id===me.id && !current.cancelled_at && current.publication!=='draft'))fail(403,'Vous ne pouvez répondre qu’à vos créneaux publiés.');
+      if(current && resource==='availability' && !hasRole(me,'planning') && current.member_id!==me.id)fail(403,'Cette déclaration ne vous appartient pas.');
       if(current?._version && body.expected_version!==current._version)
         fail(409,'Cette fiche a été modifiée depuis son ouverture. Actualisez avant de recommencer.');
       if(path==='/settings') {

@@ -5,7 +5,7 @@ import { canOpen } from './permissions.js';
 export const modules = {
   atelier:{label:'Atelier de réparation',description:'Noter les interventions et le temps passé sur les mêmes fiches objets.',pages:[]},
   collectes:{label:'Collectes et livraisons',description:'Préparer les tournées, leurs étapes et leur suivi.',pages:['tournees']},
-  planning:{label:'Planning de l’équipe',description:'Organiser les créneaux des salariés et bénévoles.',pages:['planning']},
+  planning:{label:'Planning de l’équipe',description:'Préparer et publier les semaines, suivre les confirmations et les disponibilités des salariés et bénévoles.',pages:['planning']},
   caisse:{label:'Caisse interne',description:'Enregistrer les ventes et tickets. Les terminaux de paiement et obligations de caisse restent à valider.',pages:['caisse']},
   vitrine:{label:'Sélection pour la vitrine',description:'Préparer une sélection interne des objets prêts à vendre. Aucune publication sur une boutique en ligne.',pages:['vitrine']},
   administration:{label:'Devis et factures',description:'Préparer les documents, figer leur émission, enregistrer les règlements et les avoirs.',pages:['documents']},
@@ -22,7 +22,7 @@ export function requiredModule(path,method='GET',body) {
   if(['sales','cashiers','registers','refunds'].includes(resource))return 'caisse';
   if(['documents','billing-profile'].includes(resource))return 'administration';
   if(resource==='memberships')return 'adhesions';
-  if(resource==='shifts')return 'planning';
+  if(['planning','shifts','availability'].includes(resource))return 'planning';
   if(resource==='tours')return 'collectes';
   if(resource==='storefront')return 'vitrine';
   if(resource==='stock' && method!=='GET')return {workshop:'atelier',storefront:'vitrine','cash-price':'caisse'}[body?.action];
