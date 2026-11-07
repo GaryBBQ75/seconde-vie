@@ -1,3 +1,4 @@
+import {functionalityOptions} from './condition.js';
 import {mountProductAssist} from './product-assist.js';
 import { canOpen as baseCanOpen, hasRole, roleNames, organisations, demoPhoto } from './access.js';
 import { discountCents } from './checkout.js';
@@ -898,7 +899,7 @@ function choice(name, value, label, { checked, graphic = '', hint = '', required
   </label>`;
 }
 
-function receive({ parent, barcode = '', title = '', category = '', catalog, reference, referenceConfirmed = false, description, photo, fromScan = false, market, kind = 'item', mode = 'quantite', zoneId, origin = origins[0], inline = false, resume, priceCents, condition='', note='' } = {}) {
+function receive({ parent, barcode = '', title = '', category = '', catalog, reference, referenceConfirmed = false, description, photo, fromScan = false, market, kind = 'item', mode = 'quantite', zoneId, origin = origins[0], inline = false, resume, priceCents, condition='', note='',visual_condition,functionality='untested' } = {}) {
   const site = parent ? getSite(parent.site_id) : workingSite();
   if (!site) return report(new Error('Ajoutez un site avant de réceptionner un don.'));
   const saved = inline ? resume?.fields || {} : {};
@@ -954,7 +955,7 @@ function receive({ parent, barcode = '', title = '', category = '', catalog, ref
       ${field('Provenance', `<select name="origin" ${parent ? 'disabled' : ''}>${origins.map(x => option(x,x,parent?.origin || origin)).join('')}</select>`)}
     </div>
     <details class="entry-extras" ${catalog || (reference && Object.keys(reference).length) || description || (inline && detailedIntake) ? 'open' : ''}><summary>Descriptif, caractéristiques et note</summary><div class="stack">
-      ${descriptionField(description ?? catalogDescription(catalog))}${field('État constaté (facultatif)',input('condition',`maxlength="100" placeholder="À vérifier au tri" value="${esc(condition)}"`))}<div data-reference-fields></div>
+      ${descriptionField(description ?? catalogDescription(catalog))}${field('État visuel (facultatif)',input('condition',`maxlength="100" placeholder="À vérifier au tri" value="${esc(condition)}"`))}<div data-intake-functionality>${field('Fonctionnement',`<select name="functionality">${functionalityOptions.map(([key,label])=>option(key,label,functionality)).join('')}</select>`)}</div><div data-reference-fields></div>
       ${field('Note', `<textarea name="note" maxlength="1000">${esc(note)}</textarea>`)}
       ${parent ? '' : `<div data-optional-weight>${field('Poids mesuré (kg, facultatif)', input('weight_optional', 'type="number" inputmode="decimal" min="0.001" step="0.001"'))}</div>`}
       ${field('Code-barres d’origine (EAN ou ISBN)', input('barcode', `maxlength="80" inputmode="numeric" value="${esc(barcode)}"`) + '<small>Le code imprimé sur l’objet ou son emballage. Facultatif.</small>')}
@@ -1009,6 +1010,7 @@ function receive({ parent, barcode = '', title = '', category = '', catalog, ref
     for (const control of referenceContainer.querySelectorAll('input')) referenceDraft[control.name.slice(4)] = control.value;
     const selected = new FormData(form).get('category');
     referenceContainer.innerHTML = referenceInputs(selected, referenceDraft);
+    const functionalityArea=form.querySelector('[data-intake-functionality]');if(functionalityArea){functionalityArea.hidden=selected!=='Électrique';if(selected!=='Électrique')form.elements.functionality.value='not_applicable';else if(form.elements.functionality.value==='not_applicable')form.elements.functionality.value='untested';}
   }
   drawReference();
   for (const [name,value] of Object.entries(saved)) {
@@ -1107,7 +1109,7 @@ function receive({ parent, barcode = '', title = '', category = '', catalog, ref
       zone_id:data.get('zone_id'), quantity:data.get('quantity') ? Number(data.get('quantity')) : null,
       price_cents:data.get('price') ? Math.round(Number(data.get('price')) * 100) : null,
       grams:weight ? Math.round(Number(weight) * 1000) : null,
-      condition:data.get('condition'), note:data.get('note'), barcode:data.get('barcode'), origin:data.get('origin'), contact_id:data.get('contact_id'), parent_id:parent?.id, catalog,
+      visual_condition, functionality:data.get('functionality') || functionality,reference_confirmed:true, condition:data.get('condition'), note:data.get('note'), barcode:data.get('barcode'), origin:data.get('origin'), contact_id:data.get('contact_id'), parent_id:parent?.id, catalog,
       reference:formReference(data, data.get('category')), description:data.get('description'), ...photoData,
     } });
     if (inline) clearIntakeDraft(draftScope(),site.id);
@@ -1356,13 +1358,13 @@ function formReference(data, category) {
   return Object.fromEntries(referenceFields(category).map(([key]) => [key, data.get('ref_' + key)]));
 }
 
-function referenceCard(category, values) {
+function referenceCard(category, values, statuses) {
   if (!values) return '';
   const facts = referenceFields(category).filter(([name]) => values[name]);
   if (!facts.length) return '';
   return `<section class="catalog-card" aria-label="Caractéristiques de la fiche">
     <h2>Caractéristiques de la fiche</h2>
-    <dl>${facts.map(([name, label]) => `<div><dt>${esc(label)}</dt><dd>${esc(name === 'pagination' ? pageCountValue(values[name]) : values[name])}</dd></div>`).join('')}</dl>
+    <dl>${facts.map(([name, label]) => `<div><dt>${esc(label)}</dt><dd>${esc(name === 'pagination' ? pageCountValue(values[name]) : values[name])}${statuses?.[name]==='inferred'?'<small class="assist-field-status">Proposition visuelle à confirmer</small>':''}</dd></div>`).join('')}</dl>
   </section>`;
 }
 
@@ -1441,7 +1443,7 @@ function scanPage(main) {
       <div id="scan-error" class="form-error" role="alert"></div>
     </section>
     <section class="scan-panel scan-object" aria-labelledby="scan-object-title">
-      <div><h2 id="scan-object-title">Sans code-barres</h2><p class="help">Identifiez le produit avec Eden AI, puis comparez les annonces d’occasion pour proposer un prix ressourcerie.</p></div>
+      <div><h2 id="scan-object-title">Sans code-barres</h2><p class="help">Une photo prépare automatiquement la catégorie, les caractéristiques, la description, l’état visuel et les repères de prix. Corrigez puis enregistrez.</p></div>
       <div class="scan-actions">
         ${canFlip ? `<label class="btn scan-photo">${icon('camera', 16)} Photographier l’objet
           <input type="file" id="object-capture" accept="image/*" capture="environment">
@@ -1450,7 +1452,7 @@ function scanPage(main) {
           <input type="file" id="object-photo" accept="image/*">
         </label>
       </div>
-      <p class="help">Ajoutez ensuite une vue de l’étiquette pour préciser la marque et le modèle.</p>
+      <p class="help">La photo est analysée par Eden AI. Ajoutez une vue de l’étiquette pour compléter les références illisibles.</p>
     </section><section id="scan-results" class="scan-results" aria-live="polite"></section>
     <section id="market-panel" class="scan-panel scan-object market-panel" aria-labelledby="market-title" hidden>
       <h2 id="market-title">Prix vus en ligne</h2>
@@ -1618,7 +1620,7 @@ function scanPage(main) {
     const site=workingSite();
     if(!site)return notice('Choisissez un site de réception.');
     await mountProductAssist(target,{photo,site,categories:siteCategories(site),esc,euro,referenceInputs,encodePhoto,notice,
-      canCreate:allowed('reception','tri'),currency:config.currency || 'EUR',allowPrice:demoMode || Boolean(config.intake?.price && isModuleEnabled(config,'caisse')),onCreate:draft=>receive(draft),onCode:(code,draft)=>renderResult(code,draft)});
+      origins,canCreate:allowed('reception','tri'),currency:config.currency || 'EUR',allowPrice:demoMode || Boolean(config.intake?.price && isModuleEnabled(config,'caisse')),onSave:async draft=>{const row=await api('/stock',{method:'POST',body:{kind:'item',category:draft.category,title:draft.title,site_id:site.id,zone_id:draft.zoneId,origin:draft.origin,barcode:draft.barcode,reference:draft.reference,reference_confirmed:draft.referenceConfirmed,reference_status:draft.referenceStatus,description:draft.description,condition:draft.condition,visual_condition:draft.visual_condition,functionality:draft.functionality,price_cents:draft.priceCents??null,note:draft.note,photos:draft.photo?[draft.photo]:[]}});await changed('Entrée enregistrée · '+row.code+' · Prêt pour la photo suivante.');},onCreate:draft=>receive(draft),onCode:(code,draft)=>renderResult(code,draft)});
   }
   on('object-photo', readObjectPhoto, 'change');
   on('object-capture', readObjectPhoto, 'change');
@@ -1806,9 +1808,10 @@ async function detail(id) {
     ${catalogGallery(r.catalog, r.catalog_images || [])}
     <div class="notice">${esc(r.category)} · ${esc(measure(r))}${r.price_cents != null ? ' · '+euro.format(r.price_cents/100) : ''}<br>${r.state==='transit' ? 'En déplacement' : esc([r.site_name,r.zone_name].filter(Boolean).join(' / '))}
     ${r.parent_code ? '<br>Lot d’origine '+esc(r.parent_code) : ''}${r.condition ? '<br>État · '+esc(r.condition) : ''}${r.barcode ? '<br>Code fabricant · '+esc(r.barcode) : ''}</div>
+    ${r.functionality&&r.functionality!=='not_applicable'?'<p class="help">Fonctionnement · '+esc(functionalityOptions.find(([key])=>key===r.functionality)?.[1]||'Non testé')+'</p>':''}${r.visual_condition?.summary?'<section class="catalog-card"><h3>État visuel proposé depuis la photo</h3><p>'+esc(r.visual_condition.summary)+'</p><p class="help">'+esc(r.visual_condition.limits)+'</p></section>':''}
     ${r.note ? '<p class="help">'+esc(r.note)+'</p>' : ''}
     ${catalogCard(r.catalog)}
-    ${referenceCard(r.category, effectiveReference(r))}
+    ${referenceCard(r.category, effectiveReference(r),r.reference_confirmed?null:r.reference_status)}
     ${description ? `<section aria-label="Descriptif"><h3>Descriptif</h3><p class="item-description">${esc(description)}</p></section>` : ''}
     <div class="detail-actions">
       ${active && allowed('tri','atelier') ? button('Marquer prêt','check','detail-ready','primary') : ''}
@@ -1848,7 +1851,7 @@ async function detail(id) {
     +(!demoMode && contacts.length ? field('Contact associé',`<select name="contact_id">${option('','Aucun',r.contact_id)}${contacts.map(row=>option(row.id,row.name,r.contact_id)).join('')}</select>`) : ''),
     data=>({...Object.fromEntries(data),contact_id:data.has('contact_id') ? data.get('contact_id') || null : r.contact_id || null})));
   on('detail-block',()=>actionForm(r,'block','Mettre de côté',field('Motif du contrôle','<textarea name="note" required maxlength="500" placeholder="Ex. câble abîmé"></textarea>'),d=>({note:d.get('note')})));
-  on('detail-ready',()=>actionForm(r,'ready','Valider le tri',field('État constaté',input('condition',`maxlength="100" placeholder="Ex. Testé, fonctionne" value="${esc(r.condition)}"`)) + field('Prix ('+(config.currency || 'EUR')+')',input('price',`type="number" min="0" step="0.01" value="${r.price_cents == null ? '' : r.price_cents/100}"`)),d=>({condition:d.get('condition'),price_cents:d.get('price') !== '' ? Math.round(Number(d.get('price'))*100) : null})));
+  on('detail-ready',()=>actionForm(r,'ready','Valider le tri',field('État visuel',input('condition',`maxlength="100" placeholder="Ex. Testé, fonctionne" value="${esc(r.condition)}"`)) +field('Fonctionnement',`<select name="functionality">${functionalityOptions.map(([key,label])=>option(key,label,r.functionality || 'untested')).join('')}</select>`)+ field('Prix ('+(config.currency || 'EUR')+')',input('price',`type="number" min="0" step="0.01" value="${r.price_cents == null ? '' : r.price_cents/100}"`)),d=>({functionality:d.get('functionality'),condition:d.get('condition'),price_cents:d.get('price') !== '' ? Math.round(Number(d.get('price'))*100) : null})));
   on('detail-workshop', () => actionForm(r, 'workshop', 'Intervention atelier',
     field('Type', `<select name="operation" required>${option('','Choisir une intervention')}${workshopTypes.map(type => option(type,type)).join('')}</select>`)
     + field('Temps passé (minutes)', input('minutes','type="number" required min="1" max="1440" step="1" inputmode="numeric"'))

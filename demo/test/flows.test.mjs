@@ -302,3 +302,11 @@ test('entrée après identification : état, prix nul ou absent, référence et 
   const saved=await api('/stock/'+row.id);assert.equal(saved.condition,'Bon état');assert.equal(saved.price_cents,3200);assert.equal(saved.reference.model,'XN1001');assert.match(saved.note,/Comparables/);
   assert.equal((await add({price_cents:0})).price_cents,0);assert.equal((await add()).price_cents,null);
 });
+
+
+test('réception assistée : hypothèses conservées, état visuel distinct du test de fonctionnement',async()=>{
+ await login();
+ const row=await add({category:'Électrique',title:'Raclette à contrôler',reference:{brand:'Tefal',model:'Gamme proposée',color:'Noir'},reference_confirmed:false,reference_status:{brand:'observed',model:'inferred'},condition:'État visuel correct',visual_condition:{grade:'fair',summary:'Rayures visibles',defects:['Rayures'],limits:'Vue du dessus seulement'},functionality:'untested'});
+ const value=await api('/stock/'+row.id);assert.equal(value.state,'tri');assert.equal(value.reference_confirmed,false);assert.equal(value.reference_status.model,'inferred');assert.equal(value.visual_condition.grade,'fair');assert.equal(value.functionality,'untested');
+ await action(row,{action:'ready',condition:'Bon état',functionality:'working',price_cents:1500});assert.equal((await api('/stock/'+row.id)).functionality,'working');
+});

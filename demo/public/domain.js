@@ -1,3 +1,4 @@
+import {cleanVisualCondition,functionalityOptions} from './condition.js';
 import { organisations as defaultOrganisations, demoPhoto, hasRole, roleNames } from './permissions.js';
 import { createDemoProfiles } from './demo-profiles.js';
 import seed from './seed.js';
@@ -137,7 +138,8 @@ function listRow({ photo, photos, history, ...row }) { return row; }
 function saveReference(row, body) {
   Object.assign(row, {
     reference:cleanReference(row.category, body.reference),
-    reference_confirmed:true,
+    reference_confirmed:body.reference_confirmed!==false,
+    reference_status:Object.fromEntries(Object.entries(cleanReference(row.category,body.reference)||{}).map(([key])=>[key,['observed','inferred','unknown','operator'].includes(body.reference_status?.[key])?body.reference_status[key]:body.reference_confirmed===false?'inferred':'operator'])),
     reference_updated_at:now(),
     description:typeof body.description === 'string' ? body.description.trim().slice(0, 1200) : '',
   });
@@ -176,7 +178,7 @@ function newStock(body, state, me) {
     id: id(), code: (kind === 'lot' ? 'LOT-' : 'OBJ-') + id().slice(0,10).toUpperCase(),
     title, kind, category, grams, quantity, state: 'tri', price_cents:price,
     created_at: now(), history: [], barcode:text(barcode,'le code-barres',80,false),
-    condition:text(body.condition,'l’état constaté',100,false), note:text(note,'la note',1000,false), origin:text(body.origin,'la provenance',100,false),
+    visual_condition:cleanVisualCondition(body.visual_condition),functionality:functionalityOptions.some(([key])=>key===body.functionality)?body.functionality:category==='Électrique'?'untested':'not_applicable',condition:text(body.condition,'l’état constaté',100,false), note:text(note,'la note',1000,false), origin:text(body.origin,'la provenance',100,false),
     contact_id:body.contact_id ? find(state.contacts ?? [],body.contact_id,'Contact introuvable.').id : null,
   };
   if (barcode && body.catalog?.code === normalizeScanCode(barcode)) row.catalog = body.catalog;
@@ -218,6 +220,7 @@ function act(row, body, state, me) {
     Object.assign(row, { state:'controle', note });
     record(row, me, 'controle', note);
   } else if (action === 'ready') {
+    if(body.functionality!==undefined){if(!functionalityOptions.some(([key])=>key===body.functionality))error(400,'Vérifiez le fonctionnement.');row.functionality=body.functionality;}
     Object.assign(row, { state:'pret', condition:text(body.condition, 'l’état constaté', 100, false),
       price_cents:validPrice(body.price_cents ?? row.price_cents) });
     record(row, me, 'pret', body.condition || 'Tri terminé');

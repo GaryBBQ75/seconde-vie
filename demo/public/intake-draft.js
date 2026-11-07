@@ -1,6 +1,6 @@
 const key = (org,site) => 'seconde-vie-intake-' + org + '-' + site;
 const fields = new Set(['category','kind','mode','quantity','weight','weight_optional','title','price',
-  'condition','contact_id','zone_id','origin','description','note','barcode']);
+  'condition','functionality','contact_id','zone_id','origin','description','note','barcode']);
 
 export function saveIntakeDraft(org,site,draft,storage = localStorage) {
   const clean = Object.fromEntries(Object.entries(draft.fields || {}).filter(([name,value]) =>

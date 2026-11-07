@@ -1,11 +1,11 @@
-const general = [['brand', 'Marque ou fabricant'], ['model', 'Modèle ou référence']];
+const general = [['product_type','Type d’objet'],['brand','Marque ou fabricant'],['model','Modèle ou gamme'],['manufacturer_reference','Référence fabricant'],['color','Couleur']];
 const byCategory = {
-  Livres: [['author', 'Auteur'], ['translator', 'Traduction'], ['publisher', 'Éditeur'], ['pagination', 'Nombre de pages']],
-  Textile: [['size', 'Taille'], ['material', 'Composition']],
-  Vaisselle: [['material', 'Matière'], ['capacity', 'Contenance']],
+  Livres: [['author','Auteur'],['translator','Traduction'],['publisher','Éditeur'],['pagination','Nombre de pages'],['edition','Édition'],['language','Langue']],
+  Textile: [['size','Taille'],['material','Composition'],['pattern','Motif'],['cut','Coupe'],['fastening','Fermeture']],
+  Vaisselle: [['material','Matière'],['capacity','Contenance'],['dimensions','Dimensions']],
   'Maison et déco': [['material', 'Matière'], ['dimensions', 'Dimensions']],
-  'Jeux et jouets': [['age', 'Âge indiqué'], ['players', 'Nombre de joueurs']],
-  Électrique: [['power', 'Puissance indiquée']],
+  'Jeux et jouets': [['age','Âge indiqué'],['players','Nombre de joueurs'],['contents','Éléments visibles']],
+  Électrique: [['serial_number','Numéro de série'],['power','Puissance indiquée'],['voltage','Tension indiquée'],['material','Matière / aspect'],['accessories','Accessoires visibles']],
   Mobilier: [['material', 'Matière'], ['dimensions', 'Dimensions']],
   'Sport et loisirs': [['size', 'Taille'], ['discipline', 'Discipline']],
 };

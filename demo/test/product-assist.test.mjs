@@ -7,7 +7,7 @@ const source=(id,price,extra='')=>({title:'Fauteuil IKEA POÄNG occasion',url:'h
 const raw={results:[source(1,40),source(2,50),source(3,60)]};
 
 test('identification : champs bornés, catégories autorisées, ISBN contrôlé et prix ignoré',()=>{
- const value=cleanIdentification({candidates:[{title:'  Livre test ',category:'Livres',barcode:'978-2-01-021275-8',price:500,reference:{author:'Auteur',pagination:'120 p.',secret:'inutilisé'}},{title:'Autre',category:'inconnue',barcode:'1234'}]},['Livres']);
+ const value=cleanIdentification({candidates:[{title:'  Livre test ',category:'Livres',barcode:'978-2-01-021275-8',field_status:{pagination:'observed',barcode:'observed'},price:500,reference:{author:'Auteur',pagination:'120 p.',secret:'inutilisé'}},{title:'Autre',category:'inconnue',barcode:'1234'}]},['Livres']);
  assert.equal(value.candidates[0].barcode,'9782010212758');assert.equal(value.candidates[0].reference.pagination,'120');assert(!JSON.stringify(value).includes('secret'));assert(!Object.hasOwn(value.candidates[0],'price'));assert.equal(value.candidates[1].category,'');assert.equal(value.candidates[1].barcode,'');
 });
 test('comparables : prix explicites EUR, liens sûrs, dédoublonnage et distinction neuf/occasion',()=>{
@@ -48,4 +48,14 @@ test('Eden recherche : seuls les extraits sourcés produisent des prix, erreur f
  try{const response=await productAssist(request({operation:'compare',identity,condition:'good'}),{EDENAI_API_KEY:'server-secret'}),data=await response.json();assert.equal(response.status,200);assert.equal(data.comparables.length,3);assert.equal(data.comparables[0].price_cents,4000);
  globalThis.fetch=async()=>new Response('secret-provider-diagnostic',{status:402});const failed=await productAssist(request({operation:'compare',identity,condition:'good'}),{EDENAI_API_KEY:'server-secret'});assert.equal(failed.status,502);assert.match((await failed.json()).error,/crédit/i);
  }finally{globalThis.fetch=original;}
+});
+
+
+test('photo : propositions par catégorie, état visuel et fonctionnement séparés, numéros jamais inférés',()=>{
+ const value=cleanIdentification({candidates:[{title:'Appareil à raclette Tefal',category:'Électrique',brand:'Tefal',model:'RE1234',reference:{product_type:'Appareil à raclette',color:'Noir',power:'1500 W',serial_number:'123',manufacturer_reference:'RE1234'},field_status:{brand:'observed',model:'inferred',power:'inferred',serial_number:'inferred',manufacturer_reference:'inferred',product_type:'observed',color:'observed'},visual_condition:{grade:'fair',summary:'Traces d’usage sur la plaque.',defects:['Rayures visibles'],functionality:'working',limits:'Le fonctionnement ne se déduit pas de cette vue.'}}]},['Électrique']);
+ const row=value.candidates[0];assert.equal(row.reference.color,'Noir');assert.equal(row.brand,'Tefal');assert.equal(row.model,'');assert(!row.reference.serial_number);assert(!row.reference.power);assert(!row.reference.manufacturer_reference);assert.equal(row.visual_condition.grade,'fair');assert(!Object.hasOwn(row.visual_condition,'functionality'));
+ const garment=cleanIdentification({candidates:[{title:'Veste bleue',category:'Textile',reference:{product_type:'Veste',color:'Bleu',size:'M',material:'Coton',pattern:'Uni',cut:'Droite',fastening:'Boutons'},field_status:{size:'observed',material:'observed',color:'observed'}}]},['Textile']).candidates[0];assert.equal(garment.reference.size,'M');assert.equal(garment.reference.material,'Coton');assert.equal(garment.reference.fastening,'Boutons');
+});
+test('une proposition de prix peut être préparée avant validation, sans devenir un prix confirmé',()=>{
+ const value=resourcerieEstimate(normalizeComparables(raw,identity),{condition:'good',provisional:true});assert.equal(value.cents,3200);assert.equal(value.provisional,true);assert.equal(resourcerieEstimate(normalizeComparables(raw,identity),{condition:'good'}),null);
 });
