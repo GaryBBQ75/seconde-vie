@@ -51,8 +51,10 @@ Voir [l’estimation France](MARCHE-FRANCE.md).
 
 ## État au 7 novembre 2026
 
-La V1 vise les ressourceries et recycleries. Atelier, collectes, planning, caisse et sélection vitrine sont optionnels ; réception des dons, stock, tri et rapports de flux restent inclus. Achat-revente, dépôt-vente et grandes enseignes restent hors périmètre.
+La V1 vise les ressourceries et recycleries. Atelier, collectes, planning, caisse, sélection vitrine, devis/factures et adhésions sont optionnels ; réception des dons, stock, tri et rapports de flux restent inclus. Achat-revente, dépôt-vente et grandes enseignes restent hors périmètre.
 
 La version fonctionnelle la plus récente est dans `demo/`, synchronisée avec le Site. Elle dispose désormais d’un socle partagé D1/R2 et d’une démonstration locale séparée (`?demo=1`). Voir [le périmètre du socle et des modules](demo/CORE.md). Le serveur PostgreSQL à la racine constitue une première base indépendante ; ses fonctionnalités ne sont pas encore au même niveau que la démo. Il ne faut pas remplacer son interface par celle de la démo en supposant les API compatibles.
 
 Les tests incluent les accès, la séparation de structures, l’administration, les lots, les transferts et la caisse. Voir [la revue fonctionnelle et la comparaison](docs/REVUE-2026-11-07.md).
+
+La finalisation inclut la clôture de caisse, les remboursements, les documents commerciaux et les cotisations. Voir [la recette pilote](docs/RECETTE-PILOTE.md) pour les parcours vérifiés, la préparation des modules et les vérifications de matériel à réaliser dans une ressourcerie.

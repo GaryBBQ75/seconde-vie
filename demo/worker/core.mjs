@@ -2,8 +2,9 @@ import { createBusinessAPI } from '../public/domain.js';
 import seed from '../public/seed.js';
 import { hasRole, pageRoles } from '../public/permissions.js';
 import { modules, requiredModule } from '../public/modules.js';
+import { operationCollections } from '../public/operations.js';
 
-const collections = ['sites','stock','team','transfers','shifts','sales','tours','contacts','audit'];
+const collections = ['sites','stock','team','transfers','shifts','sales','tours','contacts','audit',...operationCollections];
 export const modulePages = Object.fromEntries(Object.entries(modules).map(([key,value])=>[key,value.pages]));
 export const defaultSettings = {
   currency:'EUR',locale:'fr-FR',country:'FR',timeZone:'Europe/Paris',type:'ressourcerie',
@@ -234,8 +235,9 @@ function validateBackup(body,workspace,state,actor) {
   const imported=body.state;
   const next={settings:validateSettings(imported.settings || {},state.settings),customCategories:imported.customCategories || []};
   for(const type of collections) {
-    if(!Array.isArray(imported[type]) || imported[type].length>10000) fail(400,'Sauvegarde incomplète ou trop volumineuse.');
-    next[type]=imported[type];
+    const source=imported[type] ?? (operationCollections.includes(type)?[]:undefined);
+    if(!Array.isArray(source) || source.length>10000) fail(400,'Sauvegarde incomplète ou trop volumineuse.');
+    next[type]=source;
     const ids=new Set();
     for(const row of next[type]) {
       if(!row || typeof row!=='object' || !/^[a-z0-9-]{1,80}$/i.test(row.id || '') || ids.has(row.id)) fail(400,'Identifiants invalides dans la sauvegarde.');
@@ -244,6 +246,10 @@ function validateBackup(body,workspace,state,actor) {
     }
   }
   // Restoring business data never creates or changes account grants.
+  const canonical=rows=>JSON.stringify(rows.map(row=>JSON.stringify(row)).sort());
+  for(const type of ['sales','cashSessions','refunds','documents','memberships']) {
+    if(canonical(next[type])!==canonical(state[type]))fail(409,'Cette restauration modifierait le journal de caisse, une pièce ou une cotisation. Utilisez les corrections tracées.');
+  }
   next.team=state.team;
   const sites=new Map(next.sites.map(site=>[site.id,site]));
   for(const site of next.sites) if(!clean(site.name) || !Array.isArray(site.zones) || site.zones.some(zone=>!clean(zone.id) || !clean(zone.name))) fail(400,'Sites invalides.');
@@ -310,13 +316,14 @@ export async function core(request,env) {
       if(previous) return result(JSON.parse(previous.result),200,previous.revision);
       if(Number(request.headers.get('If-Match'))!==workspace.revision) fail(409,'Des modifications sont disponibles. Actualisez avant d’enregistrer.');
       const [,resource,itemId]=path.split('/');
-      const current=state[resource]?.find?.(row=>row.id===itemId);
+      const collection={registers:'cashSessions','billing-profile':'businessProfiles'}[resource] || resource;
+      const current=state[collection]?.find?.(row=>row.id===itemId);
       if(current?._version && body.expected_version!==current._version)
         fail(409,'Cette fiche a été modifiée depuis son ouverture. Actualisez avant de recommencer.');
       if(path==='/settings') {
         requireAdmin(me);if(request.method!=='PATCH') fail(405,'Méthode indisponible.');
         const settings=validateSettings(body,state.settings);
-        if(settings.currency!==state.settings.currency && state.stock.some(row=>row.price_cents!=null)) fail(409,'La devise ne peut plus changer après la saisie de prix.');
+        if(settings.currency!==state.settings.currency && (state.stock.some(row=>row.price_cents!=null) || state.cashSessions.length || state.documents.length || state.memberships.length)) fail(409,'La devise ne peut plus changer après la saisie de prix, de mouvements ou de documents.');
         if(!clean(body.name,100)) fail(400,'Nommez la structure.');
         workspace.name=clean(body.name,100);state.settings=settings;
       } else if(path==='/restore') {
@@ -324,7 +331,7 @@ export async function core(request,env) {
         state=validateBackup(body.backup,workspace,state,actor);
         state.audit=loaded.state.audit;
       } else {
-        if(/^\/(login|logout|profiles|config|me|snapshot|backup|audit|revision)/.test(path)) fail(405,'Action indisponible.');
+        if(/^\/(login|logout|profiles|config|me|snapshot|backup|audit|revision)(?:\/|$)/.test(path)) fail(405,'Action indisponible.');
         if(path.startsWith('/team/')) {
           const target=state.team.find(row=>row.id===path.split('/')[2]);
           if(target?.platform_user_id===workspace.owner_id && (body.active===false || !body.roles?.includes('admin') || body.email!==target.email)) fail(400,'Conservez l’accès du propriétaire de l’espace.');
@@ -336,6 +343,7 @@ export async function core(request,env) {
           await photos(body,env,workspaceId);
         }
         const value=await context.api(path+url.search,{method:request.method,body});
+        if(path==='/stock-import' && body.mode==='preview')return result(value,200,workspace.revision);
         state=context.read();
         const revision=await commit(db,loaded,state,actor,requestId,value,path);
         return result(value,200,revision);

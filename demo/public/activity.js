@@ -3,6 +3,7 @@ export const flowLabels = {
   reception:'Entrée', transit:'Départ en transfert', arrivee:'Arrivée de transfert',
   vente:'Vente', don:'Don', recyclage:'Recyclage', decheterie:'Déchèterie',
   atelier:'Intervention atelier',
+  retour:'Retour après vente',
 };
 
 export function activityEvents(stock) {

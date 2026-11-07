@@ -8,16 +8,20 @@ export const modules = {
   planning:{label:'Planning de l’équipe',description:'Organiser les créneaux des salariés et bénévoles.',pages:['planning']},
   caisse:{label:'Caisse interne',description:'Enregistrer les ventes et tickets. Les terminaux de paiement et obligations de caisse restent à valider.',pages:['caisse']},
   vitrine:{label:'Sélection pour la vitrine',description:'Préparer une sélection interne des objets prêts à vendre. Aucune publication sur une boutique en ligne.',pages:['vitrine']},
+  administration:{label:'Devis et factures',description:'Préparer les documents, figer leur émission, enregistrer les règlements et les avoirs.',pages:['documents']},
+  adhesions:{label:'Adhésions et cotisations',description:'Suivre les périodes d’adhésion, renouvellements et cotisations reçues.',pages:['adhesions']},
 };
 
 export const moduleForPage = Object.fromEntries(Object.entries(modules).flatMap(([key,value])=>value.pages.map(page=>[page,key])));
 export function firstAvailablePage(member,config,{demo=false}={}) {
-  return ['accueil','caisse','stock','rapports','tournees','registre','planning','scanner','controle','transferts','contacts','vitrine','equipe','sites','reglages']
+  return ['accueil','caisse','stock','rapports','documents','adhesions','tournees','registre','planning','scanner','controle','transferts','contacts','imports','vitrine','equipe','sites','reglages']
     .find(page=>canOpen(member,page) && (demo || !moduleForPage[page] || config?.modules?.includes(moduleForPage[page]))) || null;
 }
 export function requiredModule(path,method='GET',body) {
   const resource=path.split('/')[1];
-  if(resource==='sales' || resource==='cashiers')return 'caisse';
+  if(['sales','cashiers','registers','refunds'].includes(resource))return 'caisse';
+  if(['documents','billing-profile'].includes(resource))return 'administration';
+  if(resource==='memberships')return 'adhesions';
   if(resource==='shifts')return 'planning';
   if(resource==='tours')return 'collectes';
   if(resource==='storefront')return 'vitrine';

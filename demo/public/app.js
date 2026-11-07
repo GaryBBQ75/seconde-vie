@@ -6,6 +6,7 @@ import { flowLabels, workshopTypes } from './activity.js';
 import { api, demoMode, selectWorkspace, leaveStation, isModuleEnabled, currentRevision } from './client.js';
 import { setupWorkspace, corePages } from './foundation.js';
 import { moduleForPage as optionalModuleForPage, firstAvailablePage } from './modules.js';
+import { operationsPages } from './operations-pages.js';
 import { code128Svg } from './barcode.js';
 import { toString as qrSvg } from './vendor/qrcode/index.js';
 import { icon } from './icons.js';
@@ -23,7 +24,7 @@ const dialog = document.querySelector('#dialog');
 const toastArea = document.querySelector('#toast');
 const moduleForPage=optionalModuleForPage;
 const canOpen=(member,key)=>baseCanOpen(member,key) && (demoMode || !moduleForPage[key] || isModuleEnabled(config,moduleForPage[key]));
-const pageNames = { indisponible:'Accès aux postes', contacts:'Contacts', reglages:'Réglages', accueil: 'Réception', scanner: 'Scanner', caisse: 'Caisse', stock: 'Stock', controle: 'À vérifier', transferts: 'Transferts', planning: 'Planning', tournees: 'Tournées', rapports: 'Rapports', registre: 'Préparer le registre', vitrine: 'Vitrine', equipe: 'Équipe', sites: 'Sites et zones' };
+const pageNames = { documents:'Devis et factures', adhesions:'Adhésions', imports:'Importer du stock', indisponible:'Accès aux postes', contacts:'Contacts', reglages:'Réglages', accueil: 'Réception', scanner: 'Scanner', caisse: 'Caisse', stock: 'Stock', controle: 'À vérifier', transferts: 'Transferts', planning: 'Planning', tournees: 'Tournées', rapports: 'Rapports', registre: 'Préparer le registre', vitrine: 'Vitrine', equipe: 'Équipe', sites: 'Sites et zones' };
 const statusNames = { tri: 'À trier', controle: 'À vérifier', pret: 'Prêt', transit: 'En transit', sorti: 'Sorti' };
 const exitNames = { vente: 'Vendu', don: 'Donné', recyclage: 'Recyclage', decheterie:'Déchèterie', reparti: 'Lot réparti' };
 const esc = (value) => String(value ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' })[c]);
@@ -187,7 +188,7 @@ async function refresh() {
   if(!demoMode) {
     const value=await api('/snapshot');
     ({sites,stock,transfers,shifts,team,config,me}=value);
-    contacts=allowed('reception','stock') && !me.cash_station ? await api('/contacts') : [];
+    contacts=allowed('reception','stock','administration') && !me.cash_station ? await api('/contacts') : [];
     origins=config.origins || origins;
     euro=new Intl.NumberFormat(config.locale,{style:'currency',currency:config.currency});
     dateFmt=new Intl.DateTimeFormat(config.locale,{dateStyle:'medium',timeStyle:'short',timeZone:config.timeZone});
@@ -233,7 +234,7 @@ function render(draft) {
   persistEntry=null;
   chooseCashier = null;
   const fieldNav = nav([['accueil','receive'],['scanner','scan'],['caisse','caisse'],['stock','box'],['controle','wrench'],['transferts','truck']]);
-  const officeNav = nav([['planning','calendar'],['tournees','truck'],['rapports','dashboard'],['registre','book'],['vitrine','image'],['contacts','users'],['equipe','users'],['sites','pin'],['reglages','settings']]);
+  const officeNav = nav([['planning','calendar'],['tournees','truck'],['rapports','dashboard'],['documents','book'],['adhesions','users'],['registre','book'],['vitrine','image'],['contacts','users'],['imports','upload'],['equipe','users'],['sites','pin'],['reglages','settings']]);
   const quickNav = nav([['accueil','receive'],['scanner','scan'],['caisse','caisse'],['stock','box']])
     || nav([['rapports','dashboard'],['tournees','truck'],['registre','book'],['planning','calendar']]);
   root.innerHTML = `<div class="shell${compactNav ? ' nav-compact' : ''}"><aside class="sidebar" id="sidebar" aria-label="Navigation principale">
@@ -275,6 +276,10 @@ function render(draft) {
   });
   on('current-site', e => { siteFilter = e.target.value; localStorage.setItem('secondevie-site-' + me.org,siteFilter); render(); }, 'change');
   const main = document.querySelector('#main');
+  if(['documents','adhesions','imports'].includes(page)) {
+    const tools=operationTools();
+    Promise.resolve(page==='documents'?tools.documentsPage(main):page==='adhesions'?tools.membershipsPage(main):tools.importsPage(main)).catch(report);
+  }
   if (page === 'indisponible') main.innerHTML=header('Aucun poste actif pour votre compte','Demandez au responsable de vérifier vos fonctions et les outils activés pour la ressourcerie.');
   if (page === 'accueil') home(main, draft);
   if (page === 'scanner') scanPage(main);
@@ -447,6 +452,9 @@ function showTerminalSettings(site) {
   });
 }
 
+function operationTools() {
+  return operationsPages({api,esc,header,field,input,button,formEnd,formSubmit,showDialog,changed,notice,config,sites,printContent,date});
+}
 function cashPage(main) {
   const site = cashSite();
   main.innerHTML = header('Caisse', site?.name || '',
@@ -458,6 +466,8 @@ function cashPage(main) {
     main.insertAdjacentHTML('beforeend', '<p>Ajoutez un site pour enregistrer une vente.</p>');
     return;
   }
+  main.insertAdjacentHTML('beforeend','<section class="surface stack" id="register-controls"><p>Chargement de la caisse…</p></section>');
+  operationTools().cashControls(main,site).catch(report);
   main.insertAdjacentHTML('beforeend', `<div class="cash-grid">
     <section class="surface cash-panel" aria-labelledby="cash-search-title">
       <div class="cash-catalog-head">
@@ -700,6 +710,10 @@ function cashPage(main) {
     });
   });
   on('cash-payment', () => {
+    if(main.querySelector('#register-controls')?.dataset.open!=='1') {
+      document.getElementById('register-open')?.click();
+      return notice('Ouvrez la caisse du site avant l’encaissement.');
+    }
     if (!cart.size || locked) return;
     const amount = total();
     showDialog('Encaisser la vente', `<form id="cash-sale" class="stack">
@@ -713,7 +727,7 @@ function cashPage(main) {
         <div class="tabs">${[0,10,20,50].filter(n => n === 0 || n * 100 > amount).map(n => `<button type="button" class="btn" data-tender="${n ? n * 100 : amount}">${n ? formatPrice(n * 100) : 'Montant exact'}</button>`).join('')}</div>
         <p id="cash-change" class="cash-total" aria-live="polite"></p>
       </div>
-      <p id="cash-card-instructions" class="help">Saisissez <strong>${formatPrice(amount)}</strong> sur votre terminal autonome. Attendez que le paiement soit accepté avant de confirmer. La démo enregistre la vente dans ce navigateur.</p>
+      <p id="cash-card-instructions" class="help">Saisissez <strong>${formatPrice(amount)}</strong> sur votre terminal autonome. Attendez que le paiement soit accepté avant de confirmer. ${demoMode ? 'La démonstration enregistre la vente dans ce navigateur.' : 'La vente sera enregistrée dans votre espace partagé.'}</p>
       ${formEnd('Valider et afficher le ticket')}
     </form>`);
     const form = dialog.querySelector('#cash-sale');
@@ -1910,9 +1924,9 @@ async function printLabel(row, qr = false) {
   printContent(`<p class="label-category">${esc(row.category)}</p><h2>${esc(row.title)}</h2><p class="label-price">${row.price_cents == null ? 'Prix à définir' : euro.format(row.price_cents/100)}</p>${symbol}<p class="label-code">${esc(row.code)}</p>`);
 }
 
-function printContent(markup) {
+function printContent(markup, wide = false) {
   const section = document.createElement('section');
-  section.className = 'print-label';
+  section.className = 'print-label' + (wide ? ' print-document' : '');
   section.innerHTML = markup;
   document.body.append(section);
   document.body.classList.add('printing');
@@ -2163,12 +2177,11 @@ function activityPage(main, register = false) {
   const movementExport = main.querySelector('#activity-export');
   const salesExport = main.querySelector('#activity-sales-export');
   const siteName = id => getSite(id)?.name || 'Site non établi';
-  api(register ? '/activity?register=1' : '/activity').then(({events,sales}) => {
+  api(register ? '/activity?register=1' : '/activity').then(({events,sales,refunds=[]}) => {
     if (!result.isConnected) return;
-    let movements = [], receipts = [];
+    let movements = [], receipts = [], corrections = [];
     const day = timestamp => {
-      const d = new Date(timestamp);
-      return [d.getFullYear(), String(d.getMonth() + 1).padStart(2, '0'), String(d.getDate()).padStart(2, '0')].join('-');
+      return new Intl.DateTimeFormat('en-CA',{timeZone:config.timeZone || 'Europe/Paris',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(timestamp));
     };
     const within = row => {
       if (siteFilter && row.site_id !== siteFilter) return false;
@@ -2181,8 +2194,9 @@ function activityPage(main, register = false) {
       const period = valid ? events.filter(within) : [];
       movements = period.filter(row => register ? row.type === 'reception' : !type.value || row.type === type.value);
       receipts = valid ? sales.filter(within) : [];
+      corrections = valid ? refunds.filter(within) : [];
       movementExport.disabled = !movements.length;
-      if (salesExport) salesExport.disabled = !receipts.length;
+      if (salesExport) salesExport.disabled = !receipts.length && !corrections.length;
       if (!valid) {
         result.innerHTML = '<p>La date de fin doit être égale ou postérieure au début.</p>';
         return;
@@ -2196,7 +2210,7 @@ function activityPage(main, register = false) {
         <div><strong>${entries.length}</strong> Entrées <small>${weighed.length ? formatKg(weighed.reduce((sum,row) => sum + row.grams, 0)) + ' · ' + weighed.length + '/' + entries.length + ' pesées' : 'Poids non renseignés'}</small></div>
         <div><strong>${exits.length}</strong> Sorties de stock</div>
         <div><strong>${inStock.length}</strong> Fiches en stock <small>Stock actuel</small></div>
-        <div><strong>${euro.format(receipts.reduce((sum,row) => sum + row.total_cents, 0) / 100)}</strong> En caisse <small>${receipts.length} tickets</small></div>
+        <div><strong>${euro.format((receipts.reduce((sum,row) => sum + row.total_cents, 0)-corrections.reduce((sum,row)=>sum+row.amount_cents,0)) / 100)}</strong> Recettes nettes <small>${receipts.length} tickets · ${corrections.length} corrections</small></div>
         <div><strong>${decimal.format(minutes / 60)} h</strong> En atelier</div>
       </div>`)
       + (movements.length ? `<div class="table-scroll"><table><thead><tr><th>Date</th><th>${register ? 'Provenance' : 'Mouvement'}</th><th>Fiche</th><th>Site</th><th>Quantité</th><th>Poids</th></tr></thead>
@@ -2212,8 +2226,8 @@ function activityPage(main, register = false) {
       ['Date','Mouvement','Référence','Objet','Catégorie','Provenance','Site','Quantité','Poids (g)','Temps atelier (min)','Détail'],
       movements.map(row => [row.created_at,flowLabels[row.type],row.code,row.title,row.category,row.origin,siteName(row.site_id),row.quantity,row.grams,row.minutes,row.detail])));
     if (salesExport) on('activity-sales-export', () => downloadCsv('ventes-seconde-vie.csv',
-      ['Date','Ticket','Site','Personne en caisse','Règlement','Sous-total (centimes)','Remise (centimes)','Total (centimes)'],
-      receipts.map(row => [row.created_at,row.id,siteName(row.site_id),row.operator_name,row.payment,row.subtotal_cents ?? row.total_cents,row.discount_cents ?? 0,row.total_cents])));
+      ['Date','Type','Référence','Ticket lié','Site','Personne en caisse','Règlement','Sous-total (centimes)','Remise (centimes)','Montant net (centimes)'],
+      [...receipts.map(row => [row.created_at,'Vente',row.id,row.id,siteName(row.site_id),row.operator_name,row.payment,row.subtotal_cents ?? row.total_cents,row.discount_cents ?? 0,row.total_cents]),...corrections.map(row=>[row.created_at,row.kind==='cancel'?'Annulation':'Remboursement',row.id,row.sale_id,siteName(row.site_id),row.operator_name,row.payment,'','',-row.amount_cents])].sort((a,b)=>a[0].localeCompare(b[0]))));
     draw();
   }).catch(() => { result.textContent = 'Rapports indisponibles.'; });
 }

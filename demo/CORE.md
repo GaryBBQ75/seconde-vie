@@ -15,6 +15,7 @@ La V1 est destinée aux ressourceries et recycleries. Le socle est commun à leu
 | Terrain | Scan caméra ou douchette, étiquettes code-barres et QR, saisie en série, brouillons par personne et site |
 | Suivi des flux | Entrées, réemploi, ventes, dons, recyclage et déchèterie ; quantités, poids enregistrés et export CSV de travail |
 | Données | Base partagée, versions des fiches, conflits explicites, opérations idempotentes, journal, export et restauration |
+| Reprise de stock | Modèle CSV, aperçu de 200 lignes maximum, contrôle des catégories et zones, dédoublonnage par référence externe, import atomique réservé au responsable |
 
 Les informations ne sont saisies qu’une fois. Les modules réutilisent les mêmes identifiants d’objet, contact, membre et site. Désactiver un module conserve ses données.
 
@@ -25,12 +26,26 @@ Les informations ne sont saisies qu’une fois. Les modules réutilisent les mê
 | Atelier de réparation | Interventions et temps passé dans l’historique de la fiche objet |
 | Collectes et livraisons | Tournées, étapes, créneaux et statut |
 | Planning de l’équipe | Créneaux des salariés et bénévoles |
-| Caisse interne | Panier, ventes, tickets et attribution à un opérateur ; ne remplace pas une caisse validée |
+| Caisse interne | Ouverture par site, fond initial, ventes, mouvements d’espèces, comptage, écart motivé et clôture figée ; annulation ou remboursement intégral tracé avec retour des objets au contrôle |
 | Sélection pour la vitrine | Sélection interne des objets prêts, sans publication e-commerce |
+| Devis et factures | Brouillons, mentions de la structure, émission numérotée et figée, conversion d’un devis, règlements, avoir intégral, remboursement enregistré, impression/PDF navigateur et CSV |
+| Adhésions et cotisations | Contacts communs, périodes sans chevauchement, renouvellement, montant reçu, moyen et date, annulation motivée et CSV |
 
 La réception des dons, les contacts donateurs et les rapports de flux restent inclus sans activer de module. Les permissions individuelles restent nécessaires. Désactiver un outil masque ses actions et refuse leurs appels API, tout en conservant les données. Les anciens réglages contenant le module `rapports` restent importables ; le suivi des flux appartient désormais au socle.
 
-À qualifier avec les ressourceries pilotes avant développement : connecteurs Shopify/WooCommerce, administration des adhérents, justificatifs de dons, devis/facturation et rapports spécifiques aux organismes. Aucune synchronisation e-commerce n’est annoncée opérationnelle.
+À qualifier avec les ressourceries pilotes : connecteurs Shopify/WooCommerce, justificatifs de dons, transmission des factures électroniques et rapports spécifiques aux organismes. Aucune synchronisation e-commerce ou transmission électronique des factures n’est annoncée opérationnelle.
+
+### Caisse et administration de la V1
+
+Une session de caisse est ouverte par site, partagée entre les opérateurs autorisés. Les ventes de l’espace partagé nécessitent une caisse ouverte. Les mouvements et remboursements en espèces entrent dans le comptage attendu ; un écart doit être expliqué. Les clôtures restent figées. La correction d’une vente conserve le ticket d’origine, exige une confirmation du remboursement déjà effectué, et ne réintègre que les objets physiquement retournés et encore rattachés à cette vente. Les rapports et CSV affichent les remboursements séparément et calculent les recettes nettes. Aucun ordre bancaire n’est déclenché.
+
+Le rôle Administration donne accès aux documents, contacts et adhésions, sans donner accès à la caisse. Les lignes de facture utilisent des prix HT, des quantités entières et un taux de TVA par ligne ; les calculs restent en centimes. Les coordonnées et mentions du vendeur sont copiées lors de l’émission. Les numéros suivent des séquences par type et année ; les écritures concurrentes restent soumises au verrou de révision. Une facture émise se corrige par un avoir, jamais par écrasement.
+
+Les règlements et remboursements de factures sont un suivi de sommes déjà reçues ou versées. Ils ne créent pas un deuxième mouvement dans la caisse interne. Une cotisation est également un enregistrement administratif distinct ; le responsable doit rapprocher ces opérations avec ses encaissements réels. Les documents ne réservent pas et ne sortent pas automatiquement les objets du stock.
+
+Une restauration ne peut pas modifier les ventes, sessions de caisse, remboursements, documents ou cotisations de l’espace. Les sauvegardes précédentes restent lisibles ; une version qui modifierait ces journaux est refusée. Les corrections passent par leurs actions métier.
+
+Limites explicites : remboursements de tickets et avoirs intégraux, pas de ventilation partielle ; une session par site ; pas de TVA sur marge, de transmission à une plateforme de facturation électronique, de rapprochement bancaire automatique ou de certification fiscale. Les mentions de facturation doivent être adaptées au régime et aux biens de la structure avant usage réel. Références officielles consultées le 7 novembre 2026 : [Bercy](https://www.economie.gouv.fr/entreprises/gerer-son-entreprise-au-quotidien/gerer-sa-comptabilite-et-ses-demarches/mentions-obligatoires-dune-facture-tout-savoir), [Service Public](https://www.service-public.gouv.fr/entreprendre/vosdroits/F31808).
 
 Hors périmètre de la V1 : achat-revente, dépôt-vente et commissions, besoins spécifiques des grandes enseignes et constructeur universel de parcours. Les champs historiques de type de structure sont conservés pour compatibilité, sans choix commercial générique dans l’interface. Le développement international doit d’abord viser le même métier dans d’autres pays ; la traduction complète reste à faire.
 

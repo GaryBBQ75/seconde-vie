@@ -5,14 +5,15 @@ export const organisations = {
 
 export const roleNames = {
   admin:'Responsable', reception:'Réception', tri:'Tri', atelier:'Atelier', stock:'Stock',
-  vente:'Caisse', rapports:'Gestion et rapports', collecte:'Tournées', registre:'Journal des entrées',
+  vente:'Caisse', rapports:'Gestion et rapports', collecte:'Tournées', registre:'Journal des entrées', administration:'Administration',
 };
 
 export const pageRoles = {
   accueil:['reception','tri'], scanner:['reception','tri','atelier','stock','vente'],
   caisse:['vente'], stock:['reception','tri','atelier','stock'], controle:['tri','atelier','stock'],
   transferts:['reception','tri','stock'], planning:[], tournees:['collecte'], rapports:['rapports'],
-  contacts:['reception','stock'], reglages:['admin'], registre:['registre'], vitrine:['stock'], equipe:['admin'], sites:['admin'],
+  contacts:['reception','stock','administration'], reglages:['admin'], registre:['registre'], vitrine:['stock'], equipe:['admin'], sites:['admin'],
+  documents:['administration'], adhesions:['administration'], imports:['admin'],
 };
 
 export const hasRole = (member, ...roles) => Boolean(member &&

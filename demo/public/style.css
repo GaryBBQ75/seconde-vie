@@ -133,6 +133,8 @@ dialog::backdrop{background:#15231a71}
 .toast-entry{padding:11px 15px;border-radius:11px;box-shadow:0 8px 30px #18241c3b;color:#fff;background:#244736;font-size:12px}
 .toast-entry.error{background:#963e32}
 .print-label{display:none}
+.document-line{margin-block:12px}.business-print table{width:100%;border-collapse:collapse}.business-print th,.business-print td{padding:8px;text-align:left;border-bottom:1px solid #ccc}.business-print p{white-space:pre-line}
+@media print{body.printing .print-document{max-width:none!important;break-inside:auto!important;font-size:10pt!important}.print-document tr{break-inside:avoid}.print-document thead{display:table-header-group}}
 @media print{
   body.printing #app,body.printing dialog,body.printing #toast{display:none!important}
   body.printing .print-label{display:block;width:100%;max-width:80mm;padding:2mm;color:#000;background:#fff;font-size:11pt;break-inside:avoid}

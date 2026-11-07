@@ -21,3 +21,9 @@ Les sauvegardes JSON portent sur l’espace courant. Une restauration conserve l
 Les clés facultatives de recherche restent dans l’environnement serveur. Leurs noms sont documentés dans `.env.example`. Les bibliothèques de scan, OCR et reconnaissance locale, leurs modèles et licences sont dans `public/vendor/`. Les six ressources tierces volumineuses sont restaurées par `npm run build` à partir des adresses publiques versionnées dans `scripts/vendor-assets.json`, avec vérification SHA-256. Pour lancer le développement depuis un clone GitHub vierge, exécuter d’abord `node --use-env-proxy scripts/vendor-assets.mjs`. Les ressources sont ensuite servies localement par l’application. Une saisie manuelle reste disponible.
 
 Dans GitHub, cette application reste dans `demo/` pour préserver l’historique et le serveur PostgreSQL initial à la racine. Ses API sont indépendantes.
+
+## Finalisation de la V1
+
+La caisse interne comprend ouverture par site, fond initial, mouvements d’espèces, comptage et clôture, annulation/remboursement intégral tracé et retour au contrôle. Les modules Devis et factures et Adhésions et cotisations se règlent séparément. Le rôle Administration est distinct de la caisse. L’import CSV de stock appartient au socle et nécessite le rôle Responsable.
+
+Les documents émis sont figés et numérotés ; les règlements sont enregistrés sans déclencher de paiement externe. Les rapports calculent les recettes nettes après remboursements. Les journaux financiers ne peuvent pas être réécrits par une restauration. Les limites fiscales, les conditions de reprise et les fonctions hors périmètre sont détaillées dans `CORE.md`.

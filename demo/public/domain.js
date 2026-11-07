@@ -7,6 +7,7 @@ import { cleanReference } from './reference.js';
 import { catalogImages, normalizeScanCode } from './catalog.js';
 import { itemPhotos, maxItemPhotos } from './photos.js';
 import { acceptedCategories, colors, pictograms } from './categories.js';
+import { operationMethods, runOperation, openRegister } from './operations.js';
 
 
 export function createBusinessAPI({localStorage,sessionStorage,origin='https://seconde-vie.invalid',shared=false,organisationNames=defaultOrganisations}) {
@@ -382,6 +383,7 @@ const paymentNames = { carte:'Carte', especes:'Espèces', autre:'Autre', gratuit
 
 function checkout(body, state, me) {
   const site = find(state.sites, body?.site_id, 'Site introuvable.');
+  const register=openRegister(state,site.id,{required:shared || Boolean(state.cashSessions?.length)});
   if (body.operator_id && body.operator_id !== me.id) error(409, 'La personne en caisse a changé. Rouvrez l’encaissement.');
   if (!Object.hasOwn(paymentNames, body.payment)) error(400, 'Choisissez le mode de paiement.');
   if (!Array.isArray(body.lines) || !body.lines.length || body.lines.length > 100
@@ -412,7 +414,7 @@ function checkout(body, state, me) {
   const received = body.received_cents;
   if (cash && (!Number.isSafeInteger(received) || received < total_cents))
     error(400, 'Le montant reçu doit couvrir le total de la vente.');
-  const sale = { id:id(), site_id:site.id, payment:paymentNames[body.payment], total_cents, created_at:now(),
+  const sale = { id:id(), site_id:site.id, register_id:register?.id, payment:paymentNames[body.payment], total_cents, created_at:now(),
     operator_id:me.id, operator_name:me.name,
     ...(cash ? {received_cents:received,change_cents:received-total_cents} : {}),
     ...(discount_cents ? {subtotal_cents,discount_cents} : {}),
@@ -420,6 +422,7 @@ function checkout(body, state, me) {
   for (const {row} of lines) {
     if (!row) continue;
     act(row, {action:'exit',exit_type:'vente'}, state, me);
+    row.last_sale_id=sale.id;
     row.history[0].detail = 'Vente en caisse · ' + sale.payment;
   }
   (state.sales ??= []).unshift(sale);
@@ -437,6 +440,7 @@ function requestDemo(path, { method = 'GET', body } = {}) {
   const { pathname, searchParams } = new URL(path, origin);
   const [resource, key, action] = pathname.slice(1).split('/');
   const methods = {
+    ...operationMethods,
     profiles:['GET'],login:['POST'],logout:['POST'],me:['GET'],config:['GET'],cashiers:['GET'],
     'cash-station':['POST'],storefront:['GET'],activity:['GET'],tours:['GET','POST','PATCH'],
     sales:['GET','POST'],stock:['GET','POST'],transfers:['GET','POST'],sites:['GET','POST','PATCH'],
@@ -493,10 +497,10 @@ function requestDemo(path, { method = 'GET', body } = {}) {
     return {...withoutPin(cashier),org:identity.org,org_name:organisations[identity.org],roles:['vente'],cash_station:{site_id:siteId}};
   }
   if (station) {
-    const allowedRequest = ['me','config','sales','sites','shifts'].includes(resource)
+    const allowedRequest = ['me','config','sales','sites','shifts','registers','refunds'].includes(resource)
       || (resource === 'stock' && (method === 'GET' || body?.action === 'cash-price'));
     if (!allowedRequest) error(403, 'Ce poste est ouvert en mode caisse.');
-    if (method !== 'GET' && resource !== 'sales' && !(resource === 'stock' && body?.action === 'cash-price'))
+    if (method !== 'GET' && !['sales','registers','refunds'].includes(resource) && !(resource === 'stock' && body?.action === 'cash-price'))
       error(403, 'Ce poste est ouvert en mode caisse.');
     if (['sales','stock'].includes(resource) && method !== 'GET' && body?.site_id !== station.site_id)
       error(403, 'Utilisez le site associé à cette caisse.');
@@ -512,11 +516,16 @@ function requestDemo(path, { method = 'GET', body } = {}) {
       return key ? find(rows,key,'Fiche introuvable.') : rows.map(listRow);
     }
   }
+  if(Object.hasOwn(operationMethods,resource)) {
+    const value=runOperation({path:pathname,method,body,state,me,createStock:newStock,record});
+    if(method!=='GET' && !(resource==='stock-import' && body.mode==='preview'))save(state,identity.org);
+    return value;
+  }
   let result;
   if (resource === 'me') return me;
   if (resource === 'config') return {...seed.config,...state.settings,demo:!shared,customCategories:state.customCategories ?? []};
   if (resource === 'contacts') {
-    requireRole(me,'reception','stock');
+    requireRole(me,'reception','stock','administration');
     state.contacts ??= [];
     if (method === 'GET') return state.contacts;
     const name = text(body.name,'le nom',120);
@@ -545,8 +554,8 @@ function requestDemo(path, { method = 'GET', body } = {}) {
     requireRole(me, register ? 'registre' : 'rapports');
     if (method !== 'GET') error(405, 'Action indisponible.');
     const events = activityEvents(state.stock);
-    return register ? {events:events.filter(event => event.type === 'reception'),sales:[]}
-      : {events,sales:state.sales ?? []};
+    return register ? {events:events.filter(event => event.type === 'reception'),sales:[],refunds:[]}
+      : {events,sales:state.sales ?? [],refunds:state.refunds ?? []};
   }
   if (resource === 'tours') {
     requireRole(me,'collecte');
