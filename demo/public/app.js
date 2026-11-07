@@ -1,3 +1,5 @@
+import {mountIntakePricing} from './intake-pricing.js';
+import {shortcutKeys as keyboardKeys,shortcutLabel,keyboardAction} from './keyboard.js';
 import {functionalityOptions} from './condition.js';
 import {mountProductAssist} from './product-assist.js';
 import { canOpen as baseCanOpen, hasRole, roleNames, organisations, demoPhoto } from './access.js';
@@ -45,7 +47,7 @@ let compactNav = localStorage.getItem('secondevie-compact-nav') === 'true';
 let detailedIntake = localStorage.getItem('secondevie-detailed-intake') === 'true';
 let origins = ['Apport volontaire','Collecte à domicile','Collecte partenaire','Déchèterie','Autre'];
 const handheld = window.matchMedia('(max-width: 600px)');
-const defaultPage = () => handheld.matches ? 'scanner' : 'accueil';
+const defaultPage = () => 'accueil';
 let stopCamera;
 let planningCleanup;
 let chooseCashier;
@@ -56,7 +58,8 @@ function rememberCamera(choice) {
   if (choice === 'auto') localStorage.removeItem(cameraPreferenceKey);
   else localStorage.setItem(cameraPreferenceKey, choice);
 }
-const endScan = () => { stopCamera?.(); stopCamera = null; };
+let stopObjectCamera;
+const endScan = () => { stopCamera?.(); stopCamera = null; stopObjectCamera?.(); stopObjectCamera = null; };
 const admin = () => me?.roles.includes('admin');
 const allowed = (...roles) => hasRole(me,...roles);
 const getSite = id => sites.find(site => site.id === id);
@@ -73,10 +76,12 @@ const categoryTile = name => tile(...categoryAppearance(name));
 
 const brand = () => '<div class="brand"><img src="/mark.svg" alt=""><div><strong>seconde vie</strong><span>Votre ressourcerie au quotidien</span></div></div>';
 const macKeys = /Mac|iPad|iPhone/.test(navigator.platform || '');
-const shortcutKeys = key => key === 'Enter' ? (macKeys ? 'Meta+Enter' : 'Control+Enter')
-  : (macKeys ? 'Control+Shift+' : 'Alt+') + key;
-const keyHint = key => '<kbd class="shortcut-key" aria-hidden="true">' +
-  (key === 'Enter' ? (macKeys ? '⌘ + Entrée' : 'Ctrl + Entrée') : (macKeys ? 'Ctrl + Maj + ' : 'Alt + ') + key) + '</kbd>';
+const shortcutKeys = key => keyboardKeys(key,macKeys);
+const keyHint = key => '<kbd class="shortcut-key" aria-hidden="true">'+shortcutLabel(key,macKeys)+'</kbd>';
+const keyboardPointer=window.matchMedia('(any-hover: hover) and (any-pointer: fine)');
+const showKeyboardHints=()=>document.documentElement.classList.toggle('has-keyboard',keyboardPointer.matches);
+showKeyboardHints();keyboardPointer.addEventListener?.('change',showKeyboardHints);
+document.addEventListener('keydown',event=>{if(event.key==='Tab'||event.metaKey||event.ctrlKey||event.altKey)document.documentElement.classList.add('has-keyboard');});
 function button(label, symbol, id, tone = '', attr = '', shortcut = '') {
   return `<button type="button" class="btn ${tone}" id="${id}" ${attr} ${shortcut ? `aria-keyshortcuts="${shortcutKeys(shortcut)}"` : ''}>${symbol ? icon(symbol, 16) : ''}${esc(label)}${shortcut ? keyHint(shortcut) : ''}</button>`;
 }
@@ -222,13 +227,13 @@ async function changed(message, draft) {
   render(draft);
   notice(message);
 }
-function go(target, replace = false, nextFilter = '') {
+function go(target, replace = false, nextFilter = '', draft) {
   if (!canOpen(me,target)) target = firstAvailablePage(me,config,{demo:demoMode}) || 'indisponible';
   page = target;
   filter = nextFilter;
   search = '';
   if (location.hash !== '#' + target) history[replace ? 'replaceState' : 'pushState'](null, '', '#' + target);
-  render();
+  render(draft);
   window.scrollTo(0, 0);
 }
 window.addEventListener('popstate', () => { if (me) go(location.hash.slice(1), true); });
@@ -800,11 +805,11 @@ function home(main, draft) {
   }
   const rows = stock.filter(row => row.site_id === site.id);
   main.innerHTML = header('Réception des dons', site.name,
-    button('Scanner','scan','receive-scan','primary') + button('Voir le stock','box','receive-stock'))
+    button('Retrouver une fiche','scan','receive-scan') + button('Voir le stock','box','receive-stock'))
     + `<div class="receiving-layout">
       <section class="surface receiving-panel" aria-labelledby="receive-title">
         <div class="panel-head"><h2 id="receive-title">Nouvelle entrée</h2></div>
-        <div class="panel-body" id="receiving-form"></div>
+        <div class="panel-body" id="receiving-flow"></div>
       </section>
       <section class="intake-activity" aria-labelledby="recent-title">
         <div class="work-counts">
@@ -815,7 +820,7 @@ function home(main, draft) {
         ${recentEntries(rows.slice(0, 8))}
       </section>
     </div>`;
-  receive({ inline: true, resume:draft ? null : readIntakeDraft(draftScope(),site.id), ...draft });
+  scanPage(document.getElementById('receiving-flow'),{intake:true,draft,resume:draft?null:readIntakeDraft(draftScope(),site.id)});
   on('receive-scan', () => go('scanner'));
   on('receive-stock', () => openSiteStock(site));
   on('intake-tri', () => openSiteStock(site, 'tri'));
@@ -899,7 +904,7 @@ function choice(name, value, label, { checked, graphic = '', hint = '', required
   </label>`;
 }
 
-function receive({ parent, barcode = '', title = '', category = '', catalog, reference, referenceConfirmed = false, description, photo, fromScan = false, market, kind = 'item', mode = 'quantite', zoneId, origin = origins[0], inline = false, resume, priceCents, condition='', note='',visual_condition,functionality='untested' } = {}) {
+function receive({ parent, barcode = '', title = '', category = '', catalog, reference, referenceConfirmed = false, description, photo, photos:initialPhotos, fromScan = false, market, kind = 'item', mode = 'quantite', zoneId, origin = origins[0], inline = false, resume, priceCents, condition='', note='',visual_condition,functionality='untested' } = {}) {
   const site = parent ? getSite(parent.site_id) : workingSite();
   if (!site) return report(new Error('Ajoutez un site avant de réceptionner un don.'));
   const saved = inline ? resume?.fields || {} : {};
@@ -943,6 +948,7 @@ function receive({ parent, barcode = '', title = '', category = '', catalog, ref
       ${field('Nom de l’entrée (facultatif)', input('title', `maxlength="150" placeholder="Ex. Carton de livres" value="${esc(title)}"`))}
       ${field('Prix de vente (€, facultatif)', input('price', 'type="number" min="0" max="1000000" step="0.01" inputmode="decimal" placeholder="À définir" value="'+(priceCents==null?'':priceCents/100)+'"'))}
     </div>
+    <details class="entry-extras" data-intake-pricing></details>
     <div class="price-suggestion" data-price-suggestion aria-live="polite" hidden></div>
     ${market ? '<details class="entry-extras"><summary>Prix vus en ligne</summary><div data-intake-market aria-live="polite"></div></details>' : ''}
     ${barcode ? `<p class="intake-barcode">${icon('scan', 15)} Code scanné <strong>${esc(barcode)}</strong></p>` : ''}
@@ -974,13 +980,14 @@ function receive({ parent, barcode = '', title = '', category = '', catalog, ref
   if(!demoMode) {
     const fields=config.intake || {};
     const toggle=(name,visible)=>{const control=form.elements.namedItem(name);if(control)control.closest('label').hidden=!visible;};
-    toggle('price',fields.price && isModuleEnabled(config,'caisse'));
+    toggle('price',inline || fromScan || fields.price);
     const photoArea=form.querySelector('.entry-photos');if(photoArea)photoArea.hidden=fields.photos===false;
     const extras=form.querySelector('.entry-extras');if(extras && !catalog && !fromScan)extras.open=fields.reference===true;
     toggle('note',fields.note===true);
   }
   if (market) market.showInIntake(form.querySelector('[data-intake-market]'));
-  const photos = bindPhotoEditor(form, resume?.photos?.length ? resume.photos : photo ? [photo] : []);
+  mountIntakePricing(form,{esc,euro,currency:config.currency||'EUR',referenceConfirmed});
+  const photos = bindPhotoEditor(form, resume?.photos?.length ? resume.photos : initialPhotos?.length ? initialPhotos : photo ? [photo] : []);
   if (inline) {
     const extras = form.querySelector('.entry-extras');
     let wasOpen = extras.open;
@@ -1396,11 +1403,11 @@ function catalogCard(info, showTitle = false) {
   </section>`;
 }
 
-function scanPage(main) {
+function scanPage(main,{intake=false,draft,resume}={}) {
   const canFlip = handheld.matches || window.matchMedia('(pointer: coarse)').matches;
-  main.innerHTML = header('Scanner', 'Cherchez par code, par nom ou à partir d’une photo de l’objet.',
-    button('Matériel', '', 'scan-hardware'))
-    + `<section class="scan-panel" aria-label="Lecteur de codes">
+  main.innerHTML = (intake?'':header('Scanner', 'Retrouvez un produit par son code, sa référence ou son nom.',allowed('reception','tri')?button('Réceptionner un produit','receive','scan-new-entry') :''))
+    + (intake?`<div class="scan-modes" role="tablist" aria-label="Commencer une réception"><button id="scan-code-tab" class="btn" role="tab" aria-selected="false" aria-controls="scan-code-panel" tabindex="-1">${icon('scan',18)} Code-barres</button><button id="scan-photo-tab" class="btn" role="tab" aria-selected="true" aria-controls="scan-product-assist">${icon('camera',18)} Photos + IA</button><button id="scan-manual-tab" class="btn" role="tab" aria-selected="false" aria-controls="scan-manual-panel" tabindex="-1">Saisie manuelle</button></div><div id="scan-product-assist" role="tabpanel" aria-labelledby="scan-photo-tab"></div><div id="scan-manual-panel" role="tabpanel" aria-labelledby="scan-manual-tab" hidden><div id="receiving-form"></div></div>`:'')
+    + `<section id="scan-code-panel" class="scan-panel" ${intake?'role="tabpanel" aria-labelledby="scan-code-tab" hidden':'aria-label="Retrouver une fiche"'}>
       <dialog class="scan-camera-panel" id="scan-camera-panel" aria-labelledby="scan-camera-title" hidden>
         <header class="scan-camera-header">
           <h2 id="scan-camera-title">Scanner un code</h2>
@@ -1426,12 +1433,10 @@ function scanPage(main) {
       </dialog>
       <div class="scan-actions">
         ${button('Ouvrir la caméra', 'scan', 'scan-camera', 'primary')}
-        <label class="btn scan-photo">${icon('image', 16)} Lire une photo du code
+        <label class="btn scan-photo">${icon('image', 16)} Importer un code
           <input type="file" id="scan-photo" accept="image/*">
         </label>
-        <label class="btn scan-photo scan-capture">${icon('camera', 16)} Photographier le code
-          <input type="file" id="scan-capture" accept="image/*" capture="environment">
-        </label>
+        <label class="btn scan-photo scan-capture" hidden><input type="file" id="scan-capture" accept="image/*" capture="environment"></label>
       </div>
       <form id="scan-form">
         <label class="field"><span>Code-barres, référence ou nom ${keyHint('R')}</span>
@@ -1440,20 +1445,9 @@ function scanPage(main) {
         <button type="submit" class="btn">${icon('search', 16)} Rechercher</button>
         <div class="form-error" role="alert"></div>
       </form>
-      <div id="scan-error" class="form-error" role="alert"></div>
+      <div id="scan-error" class="form-error" role="alert"></div><details><summary>Réglages du lecteur</summary>${button('Matériel', '', 'scan-hardware')}</details>
     </section>
-    <section class="scan-panel scan-object" aria-labelledby="scan-object-title">
-      <div><h2 id="scan-object-title">Sans code-barres</h2><p class="help">Une photo prépare automatiquement la catégorie, les caractéristiques, la description, l’état visuel et les repères de prix. Corrigez puis enregistrez.</p></div>
-      <div class="scan-actions">
-        ${canFlip ? `<label class="btn scan-photo">${icon('camera', 16)} Photographier l’objet
-          <input type="file" id="object-capture" accept="image/*" capture="environment">
-        </label>` : ''}
-        <label class="btn scan-photo">${icon('image', 16)} Choisir une photo de l’objet
-          <input type="file" id="object-photo" accept="image/*">
-        </label>
-      </div>
-      <p class="help">La photo est analysée par Eden AI. Ajoutez une vue de l’étiquette pour compléter les références illisibles.</p>
-    </section><section id="scan-results" class="scan-results" aria-live="polite"></section>
+<section id="scan-results" class="scan-results" aria-live="polite"></section>
     <section id="market-panel" class="scan-panel scan-object market-panel" aria-labelledby="market-title" hidden>
       <h2 id="market-title">Prix vus en ligne</h2>
       <form>
@@ -1476,7 +1470,10 @@ function scanPage(main) {
   const zoomButtons = [...cameraPanel.querySelectorAll('[data-scan-zoom]')];
   let zoomCamera;
   let lookup = 0;
-  if (!handheld.matches) codeInput.focus({ preventScroll:true });
+  function showScanMode(mode){if(!intake)return;endScan();for(const name of ['photo','code','manual']){const selected=name===mode,tab=document.getElementById('scan-'+name+'-tab');tab.setAttribute('aria-selected',String(selected));tab.tabIndex=selected?0:-1;}document.getElementById('scan-product-assist').hidden=mode!=='photo';document.getElementById('scan-manual-panel').hidden=mode!=='manual';document.getElementById('scan-code-panel').hidden=mode!=='code';target.hidden=mode!=='code';document.getElementById('market-panel').hidden=mode!=='code'||!document.getElementById('market-panel').querySelector('[data-market-results]').hasChildNodes();if(mode==='code')codeInput.focus({preventScroll:true});}
+  function openIntake(value){if(!intake)return go('accueil',false,'',value);showScanMode('manual');receive({inline:true,...value});}
+  on('scan-new-entry',()=>go('accueil'));
+  if(intake){const modes=['code','photo','manual'];for(const mode of modes){const tab=document.getElementById('scan-'+mode+'-tab');tab.addEventListener('click',()=>showScanMode(mode));tab.addEventListener('keydown',event=>{if(['ArrowLeft','ArrowRight','Home','End'].includes(event.key)){event.preventDefault();const next=event.key==='Home'?'code':event.key==='End'?'manual':modes[(modes.indexOf(mode)+(event.key==='ArrowLeft'?2:1))%3];showScanMode(next);document.getElementById('scan-'+next+'-tab').focus();}});}receive({inline:true,resume,...draft});showScanMode(draft||resume?'manual':'photo');}else if(!handheld.matches)codeInput.focus({preventScroll:true});
 
   async function renderResult(rawCode,prefill={}) {
     const current = ++lookup;
@@ -1495,14 +1492,14 @@ function scanPage(main) {
 
     const type = catalogType(key);
     if (!rows.length && !type && !/^(?:OBJ|LOT)-/i.test(key) && /[\p{L}]/u.test(key)) {
-      market.search(key);
+      target.innerHTML='<p class="notice">Aucune fiche trouvée pour ce nom.</p>';
       if (allowed('reception', 'tri')) {
         target.innerHTML = button('Créer une fiche', 'plus', 'scan-name-add', 'primary');
-        on('scan-name-add', () => receive({ title:key, fromScan:true }));
+        on('scan-name-add', () => openIntake({ title:key, fromScan:true }));
       }
       return;
     }
-    const marketResult = type && market.search(key, { barcode:key });
+    const marketResult = false;
     let info = rows.find(row => row.catalog?.code === key)?.catalog;
     const referenceRow = rows.filter(row => row.reference)
       .sort((a, b) => (b.reference_updated_at || '').localeCompare(a.reference_updated_at || ''))[0];
@@ -1523,10 +1520,10 @@ function scanPage(main) {
       const item = rows[0];
       const title = item && item.title !== item.category ? item.title : '';
       return {
-        photo:prefill.photo,priceCents:prefill.priceCents,condition:prefill.condition,barcode:key, title:title || info?.title || [info?.brand, info?.model].filter(Boolean).join(' '),
+        photo:prefill.photo,photos:prefill.photos,priceCents:prefill.priceCents,condition:prefill.condition,barcode:key, title:title || info?.title || [info?.brand, info?.model].filter(Boolean).join(' '),
         category:referenceRow?.category || item?.category || (type === 'book' ? 'Livres' : ''),
         catalog:info, reference:referenceRow?.reference, referenceConfirmed:referenceRow?.reference_confirmed,
-        fromScan:Boolean(type), market:type ? market : undefined,
+        fromScan:true,
       };
     }
 
@@ -1543,12 +1540,13 @@ function scanPage(main) {
 
     function openEntry() {
       entered = true;
-      receive(scanDraft());
+      openIntake(scanDraft());
     }
     on('scan-add', openEntry);
 
     if (info?.retrieved || !type) {
       display(rows.length ? '' : 'Aucune fiche pour ce code.');
+      if(intake&&info&&!entered)openEntry();
       return;
     }
 
@@ -1600,31 +1598,10 @@ function scanPage(main) {
   on('scan-photo', readScanPhoto, 'change');
   on('scan-capture', readScanPhoto, 'change');
 
-  async function readObjectPhoto(event) {
-    const file = event.target.files[0];
-    event.target.value = '';
-    if (!file) return;
-    endScan();
-    const current = ++lookup;
-    market.reset();
-    cameraError.textContent = '';
-    target.innerHTML = '<p class="notice">Analyse de la photo en cours…</p>';
-    const active = () => target.isConnected && current === lookup;
-    let photo;
-    try { photo = await encodePhoto(file); }
-    catch (error) {
-      if (active()) target.innerHTML = `<p class="notice">${esc(error.message)}</p>`;
-      return;
-    }
-    if (!active()) return;
     const site=workingSite();
     if(!site)return notice('Choisissez un site de réception.');
-    await mountProductAssist(target,{photo,site,categories:siteCategories(site),esc,euro,referenceInputs,encodePhoto,notice,
-      origins,canCreate:allowed('reception','tri'),currency:config.currency || 'EUR',allowPrice:demoMode || Boolean(config.intake?.price && isModuleEnabled(config,'caisse')),onSave:async draft=>{const row=await api('/stock',{method:'POST',body:{kind:'item',category:draft.category,title:draft.title,site_id:site.id,zone_id:draft.zoneId,origin:draft.origin,barcode:draft.barcode,reference:draft.reference,reference_confirmed:draft.referenceConfirmed,reference_status:draft.referenceStatus,description:draft.description,condition:draft.condition,visual_condition:draft.visual_condition,functionality:draft.functionality,price_cents:draft.priceCents??null,note:draft.note,photos:draft.photo?[draft.photo]:[]}});await changed('Entrée enregistrée · '+row.code+' · Prêt pour la photo suivante.');},onCreate:draft=>receive(draft),onCode:(code,draft)=>renderResult(code,draft)});
-  }
-  on('object-photo', readObjectPhoto, 'change');
-  on('object-capture', readObjectPhoto, 'change');
-
+    if(intake)mountProductAssist(document.getElementById('scan-product-assist'),{keyHint,onCameraClose:()=>{stopObjectCamera=null;},onCameraOpen:stop=>{endScan();stopObjectCamera=stop;},site,categories:siteCategories(site),esc,euro,referenceInputs,encodePhoto,notice,
+      origins,canCreate:allowed('reception','tri'),currency:config.currency || 'EUR',allowPrice:true,onSave:async draft=>{const row=await api('/stock',{method:'POST',body:{kind:'item',category:draft.category,title:draft.title,site_id:site.id,zone_id:draft.zoneId,origin:draft.origin,barcode:draft.barcode,reference:draft.reference,reference_confirmed:draft.referenceConfirmed,reference_status:draft.referenceStatus,description:draft.description,condition:draft.condition,visual_condition:draft.visual_condition,functionality:draft.functionality,price_cents:draft.priceCents??null,note:draft.note,photos:draft.photos||[]}});await changed('Entrée enregistrée · '+row.code+' · Prêt pour la photo suivante.');},onCreate:draft=>openIntake(draft),onCode:(code,draft)=>{showScanMode('code');renderResult(code,draft);}});
   async function cameraOptions(track, choice, stillActive) {
     const settings = track.getSettings?.() || {};
     const devices = (await navigator.mediaDevices.enumerateDevices?.().catch(() => []) || [])
@@ -2326,31 +2303,13 @@ function siteCategoryForm(site) {
 }
 
 document.addEventListener('keydown', event => {
-  if (event.defaultPrevented || event.repeat || event.isComposing || event.keyCode === 229 ||
-      event.getModifierState('AltGraph') || dialog.hasAttribute('open') || stopCamera) return;
-  let target;
-  let focus = false;
-  const continueEntry = event.key === 'Enter' && (macKeys ? event.metaKey && !event.ctrlKey : event.ctrlKey && !event.metaKey)
-    && !event.altKey && !event.shiftKey;
-  if (continueEntry && page === 'accueil') {
-    target = '#intake-form button[name=next]';
-  } else {
-    const actionKeys = macKeys ? event.ctrlKey && event.shiftKey && !event.altKey
-      : event.altKey && !event.ctrlKey && !event.shiftKey;
-    if (!actionKeys || event.metaKey) return;
-    const key = event.key.toLowerCase();
-    if (key === 'r') {
-      target = {caisse:'#cash-search input', scanner:'#scan-input', stock:'#stock-search', controle:'#stock-search'}[page];
-      focus = true;
-    } else if (page === 'caisse') {
-      target = {a:'#cash-unlabelled', p:'#cash-payment'}[key];
-    }
-  }
-  const control = target && document.querySelector(target);
-  if (!control || control.disabled) return;
-  event.preventDefault();
-  if (focus) control.focus();
-  else control.click();
+  if(dialog.hasAttribute('open')||stopCamera||stopObjectCamera)return;
+  const action=keyboardAction(event,{mac:macKeys,page});let target;
+  if(action==='search'){if(page==='accueil')document.getElementById('scan-code-tab')?.click();target={accueil:'#scan-input',scanner:'#scan-input',caisse:'#cash-search input',stock:'#stock-search',controle:'#stock-search'}[page];}
+  else if(action==='continue')target='[data-assist-form] button[type=submit],#intake-form button[name=next]';
+  else if(action==='add')target='#cash-unlabelled';else if(action==='payment')target='#cash-payment';
+  const control=target&&[...document.querySelectorAll(target)].find(node=>!node.disabled&&node.getClientRects().length);if(!control)return;
+  event.preventDefault();if(action==='search')control.focus();else control.click();
 });
 
 function profileAvatar(member) {

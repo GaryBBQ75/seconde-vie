@@ -59,3 +59,21 @@ test('photo : propositions par catégorie, état visuel et fonctionnement sépar
 test('une proposition de prix peut être préparée avant validation, sans devenir un prix confirmé',()=>{
  const value=resourcerieEstimate(normalizeComparables(raw,identity),{condition:'good',provisional:true});assert.equal(value.cents,3200);assert.equal(value.provisional,true);assert.equal(resourcerieEstimate(normalizeComparables(raw,identity),{condition:'good'}),null);
 });
+
+test('analyse : une à six vues du même produit, toutes transmises en un seul appel',async()=>{
+ const original=globalThis.fetch;let calls=0,payload;
+ globalThis.fetch=async(url,options)=>{calls++;payload=JSON.parse(options.body);return Response.json({choices:[{message:{content:JSON.stringify({candidates:[{...identity,category:'Mobilier'}]})}}]});};
+ try {
+  const env={EDENAI_API_KEY:'test-only-key'},photos=Array(6).fill(photo),body={operation:'identify',photos,categories:['Mobilier']};
+  assert.equal((await productAssist(request(body),env)).status,200);assert.equal(calls,1);
+  const images=payload.messages[0].content.filter(row=>row.type==='image_url');assert.equal(images.length,6);assert(images.every(row=>row.image_url.url===photo));
+  assert.match(payload.messages[0].content[0].text,/MÊME produit/);
+  for(const invalid of [[],Array(7).fill(photo),[photo,'https://example.org/photo.jpg'],[photo,null],'invalid'])assert.equal((await productAssist(request({...body,photos:invalid}),env)).status,400);
+  assert.equal(calls,1);
+  // Six independently prepared views may exceed the old two-image body limit.
+  const large='data:image/jpeg;base64,/9j/'+ 'A'.repeat(385000);
+  assert.equal((await productAssist(request({...body,photos:Array(6).fill(large)}),env)).status,200);assert.equal(calls,2);
+  const oversized='data:image/jpeg;base64,/9j/'+ 'A'.repeat(500000);
+  assert.equal((await productAssist(request({...body,photos:[oversized]}),env)).status,400);assert.equal(calls,2);
+ }finally{globalThis.fetch=original;}
+});
