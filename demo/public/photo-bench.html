@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="fr"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Comparer la reconnaissance photo · Seconde Vie</title>
+<link rel="stylesheet" href="/style.css">
+<main style="max-width:48rem;margin:auto;padding:1rem">
+<a href="/#scanner">← Scanner</a>
+<h1>Comparer la reconnaissance photo</h1>
+<p>Utilisez la même photo pour chaque essai. Une vue de l’étiquette peut servir à confirmer la référence.</p>
+<form id="bench" class="stack">
+<label class="field">Photo de l’objet <input type="file" id="photo" accept="image/*"></label>
+<label class="field">Photo de l’étiquette (facultative) <input type="file" id="label" accept="image/*"></label>
+<label class="field">Ou lien HTTPS public direct vers la photo <input type="url" id="url" placeholder="https://…" autocomplete="off"></label>
+<label class="field">Référence ou description pour Linkup <input type="text" id="query" maxlength="180" placeholder="Ex. Lacoste BH1234 doudoune rouge noire"></label>
+<p class="help">Les essais en ligne transmettent la photo, son lien ou la requête au fournisseur choisi. SerpApi utilise le lien public.</p>
+<div class="scan-actions">
+<button type="button" class="btn" data-engine="local">MobileNet · sur cet appareil</button>
+<a class="btn" href="https://lens.google.com/" target="_blank" rel="noopener noreferrer">Ouvrir Google Lens · ajouter la même photo</a>
+<button type="button" class="btn" data-engine="google" disabled>Google Cloud Vision</button>
+<button type="button" class="btn" data-engine="serp" disabled>Lens via SerpApi</button>
+<button type="button" class="btn" data-engine="ocrLocal">Lire l’étiquette · sur cet appareil</button>
+<button type="button" class="btn" data-engine="edenOcr" disabled>Lire l’étiquette · Eden AI</button>
+<button type="button" class="btn" data-engine="edenLogo" disabled>Détecter le logo · Eden AI</button>
+<button type="button" class="btn" data-engine="linkup" disabled>Chercher la référence · Linkup</button>
+<button type="button" class="btn" data-engine="ebay" disabled>Chercher par photo · eBay France</button>
+</div>
+<p id="availability" class="help" role="status"></p>
+</form>
+<section id="results" aria-label="Résultats de comparaison"></section>
+</main>
+<script type="module" src="/photo-bench.js"></script>

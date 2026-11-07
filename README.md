@@ -24,7 +24,7 @@ Le rôle Responsable ajoute les membres, cumule leurs fonctions, crée les sites
 ## Explorer les versions
 
 - **Application serveur** à la racine. Back-office Node.js et PostgreSQL.
-- **[Démo web](demo/)**. Version statique utilisée pour la démonstration en ligne, avec données fictives. Depuis la racine du projet, lancer `python3 -m http.server 8000 --directory demo`, puis ouvrir [http://localhost:8000](http://localhost:8000).
+- **[Démo web actuelle](demo/)**. Interface publiée : `cd demo && npm run dev`, puis ouvrir [http://localhost:4173](http://localhost:4173). Elle inclut un espace partagé avec identité et droits serveur. Le mode `?demo=1` conserve des exemples fictifs dans le navigateur. Node.js 24 est requis pour cette application.
 - **[Six parcours UX](prototypes/six-parcours.html)**. Télécharger le fichier HTML et l’ouvrir dans un navigateur pour comparer les parcours avec des données d’exemple.
 - **[Brief UX pour Claude](docs/Seconde_Vie_Brief_Claude.pdf)**. Contexte du produit et scénarios communs pour comparer de nouvelles propositions.
 
@@ -45,6 +45,14 @@ Le déploiement initial utilise une instance de l’application par structure. U
 
 Le CSV porte sur les fiches de stock. Une sortie pour vente met à jour le stock. Le pilote prévoit encore de valider la reprise des données, les exports de tonnages par période, le changement rapide de profil sur tablette partagée et la connexion à une caisse existante. La reconnaissance visuelle, la facturation et la synchronisation hors ligne sont des sujets distincts à qualifier en entretien.
 
-Le code est structuré pour un déploiement autonome. Le choix d’une licence open source reste à décider avant toute publication du code.
+Le code est structuré pour un déploiement autonome. Le choix d’une licence open source reste à décider. La visibilité du dépôt ne vaut pas attribution d’une licence.
 
 Voir [l’estimation France](MARCHE-FRANCE.md).
+
+## État au 7 novembre 2026
+
+La V1 vise les ressourceries et recycleries. Atelier, collectes, planning, caisse et sélection vitrine sont optionnels ; réception des dons, stock, tri et rapports de flux restent inclus. Achat-revente, dépôt-vente et grandes enseignes restent hors périmètre.
+
+La version fonctionnelle la plus récente est dans `demo/`, synchronisée avec le Site. Elle dispose désormais d’un socle partagé D1/R2 et d’une démonstration locale séparée (`?demo=1`). Voir [le périmètre du socle et des modules](demo/CORE.md). Le serveur PostgreSQL à la racine constitue une première base indépendante ; ses fonctionnalités ne sont pas encore au même niveau que la démo. Il ne faut pas remplacer son interface par celle de la démo en supposant les API compatibles.
+
+Les tests incluent les accès, la séparation de structures, l’administration, les lots, les transferts et la caisse. Voir [la revue fonctionnelle et la comparaison](docs/REVUE-2026-11-07.md).

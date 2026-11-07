@@ -1,0 +1,8 @@
+TensorFlow.js 4.22.0 and @tensorflow-models/mobilenet 2.1.1
+Copyright Google LLC and TensorFlow contributors. Apache License 2.0.
+https://github.com/tensorflow/tfjs
+https://github.com/tensorflow/tfjs-models/tree/master/mobilenet
+
+Google MobileNet V2 0.50 224 classification, TensorFlow.js revision 2.
+https://www.kaggle.com/models/google/mobilenet-v2
+https://tfhub.dev/google/imagenet/mobilenet_v2_050_224/classification/2

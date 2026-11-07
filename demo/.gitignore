@@ -1,0 +1,10 @@
+/dist/
+/.env
+/.local/
+/node_modules/
+/public/vendor/mobilenet/group1-shard1of2.bin
+/public/vendor/mobilenet/group1-shard2of2.bin
+/public/vendor/mobilenet/tf.min.js
+/public/vendor/tesseract/tesseract-core-lstm.wasm.js
+/public/vendor/tesseract/fra.traineddata.gz
+/public/vendor/zxing/zxing-browser.min.js

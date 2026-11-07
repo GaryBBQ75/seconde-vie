@@ -1,0 +1,28 @@
+{
+  "mobilenet/tf.min.js": {
+    "url": "https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js",
+    "sha256": "300dfae273d20b4046f46a06d735688f03675a807561e9bcb5f664eb2f3d2831"
+  },
+  "tesseract/tesseract-core-lstm.wasm.js": {
+    "url": "https://cdn.jsdelivr.net/npm/tesseract.js-core@6.0.0/tesseract-core-lstm.wasm.js",
+    "sha256": "775a35df6f2ae100e02609443e6bd5cafcd07983dd6175454ca4a432a7730687"
+  },
+  "zxing/zxing-browser.min.js": {
+    "url": "https://cdn.jsdelivr.net/npm/@zxing/browser@0.2.1/umd/zxing-browser.min.js",
+    "sha256": "066bc34edfcdd4a33f0964aeec967752a0dea1ccaf36e58e319ac9fcb5070f6a"
+  },
+  "tesseract/fra.traineddata.gz": {
+    "url": "https://cdn.jsdelivr.net/npm/@tesseract.js-data/fra@1.0.0/4.0.0_best_int/fra.traineddata.gz",
+    "sha256": "d611139672b3752c7097e671e4a1d9209dfd37f2aeb081ef6487fba3351e9255"
+  },
+  "mobilenet/group1-shard1of2.bin": {
+    "url": "https://www.kaggle.com/api/v1/models/google/mobilenet-v2/tfJs/050-224-classification/2/download",
+    "member": "group1-shard1of2.bin",
+    "sha256": "4d32be7f3ba4c7ff3b7ee7d805715f4d4e48b94712b93b16982b220b4c686dcc"
+  },
+  "mobilenet/group1-shard2of2.bin": {
+    "url": "https://www.kaggle.com/api/v1/models/google/mobilenet-v2/tfJs/050-224-classification/2/download",
+    "member": "group1-shard2of2.bin",
+    "sha256": "47fcd534652e923fef5ba671f71bd5453157d7c650ee23f2158937d10210049e"
+  }
+}
