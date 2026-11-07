@@ -1,3 +1,4 @@
+import {productAssist} from './product-assist.mjs';
 import { core } from './core.mjs';
 
 const markets = new Map([
@@ -336,6 +337,7 @@ export default { async fetch(request, env) {
   const url = new URL(request.url);
   if (url.pathname.startsWith('/api/core/')) return core(request,env);
   if (url.pathname === '/api/terminal-readers') return terminalReaders(request, env, url.searchParams.get('provider'));
+  if (url.pathname === '/api/product-assist') return productAssist(request,env);
   if (url.pathname === '/api/photo-bench') return photoBench(request, env);
   if (url.pathname === '/api/market' || url.pathname === '/api/market/collections') return market(request, url, env);
   return env.ASSETS.fetch(request);

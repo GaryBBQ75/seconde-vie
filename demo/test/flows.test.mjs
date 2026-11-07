@@ -294,3 +294,11 @@ test('routes serveur : refus sans session et sans fournisseur configuré',async 
   assert.equal((await worker.fetch(new Request('https://demo.example.test/api/photo-bench',{method:'POST'}),env)).status,403);
   assert.equal(await (await worker.fetch(new Request('https://demo.example.test/'),env)).text(),'asset');
 });
+
+
+test('entrée après identification : état, prix nul ou absent, référence et note restent modifiables',async()=>{
+  await login();
+  const row=await add({category:'Électrique',title:'Cafetière identifiée',condition:'Bon état',price_cents:3200,reference:{brand:'Krups',model:'XN1001'},note:'Comparables consultés par l’opérateur.'});
+  const saved=await api('/stock/'+row.id);assert.equal(saved.condition,'Bon état');assert.equal(saved.price_cents,3200);assert.equal(saved.reference.model,'XN1001');assert.match(saved.note,/Comparables/);
+  assert.equal((await add({price_cents:0})).price_cents,0);assert.equal((await add()).price_cents,null);
+});

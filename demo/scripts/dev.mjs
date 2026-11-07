@@ -31,7 +31,7 @@ createServer(async (incoming, outgoing) => {
     for await(const chunk of incoming) chunks.push(chunk);
     const body=['GET','HEAD'].includes(incoming.method) ? undefined : Buffer.concat(chunks);
     const response = await worker.fetch(new Request(url, { method:incoming.method, headers,body }), {
-      ...bindings,
+      ...bindings, EDENAI_API_KEY:process.env.EDENAI_API_KEY, EDENAI_VISION_MODEL:process.env.EDENAI_VISION_MODEL,
       ASSETS:assets, BRAVE_SEARCH_API_KEY:process.env.BRAVE_SEARCH_API_KEY,
     });
     outgoing.writeHead(response.status, Object.fromEntries(response.headers));

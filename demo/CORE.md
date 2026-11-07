@@ -97,3 +97,9 @@ Cet accès direct n’est pas une authentification de production. L’espace par
 ### Interaction dans l’agenda
 
 La coordination peut glisser une personne sur une heure pour préparer une affectation en brouillon, déplacer les créneaux et ajuster leur durée par les poignées. Les vues semaine/jour et les couleurs de poste facilitent la lecture. La sélection puis le clic et le formulaire restent disponibles ; une dérogation à une indisponibilité exige le formulaire et un motif. Les refus du serveur rétablissent le créneau visuel. Le calendrier des membres reste consultatif ; leurs réponses et déclarations utilisent les parcours existants.
+
+### Aide à l’identification et au prix
+
+Le scanner propose un parcours photo avec Eden AI : propositions de produit, marque/modèle et inscriptions lisibles, correction par l’opérateur, recherche d’annonces d’occasion et reprise facultative d’un prix ressourcerie. Une photo d’étiquette peut compléter celle de l’objet. Le fonctionnement électrique, l’authenticité et les accessoires ne sont pas présumés depuis l’image. La photo demeure facultative sur la fiche et la réception rapide n’exige aucune analyse.
+
+Les comparables présentent leur lien, l’extrait, l’état et le prix affiché. Le calcul requiert trois prix retenus et la confirmation de l’objet ; les sources douteuses sont à vérifier manuellement. La proposition utilise le bas des annonces d’occasion avec une remise visible et réglable sur le poste. Les prix neufs et les ventes réalisées ne sont pas mélangés aux annonces. La note proposée conserve les premiers liens utilisés ; elle reste modifiable. Une clé Eden AI valide avec crédit et une session Sites sont nécessaires aux appels externes. Les devises autres que l’EUR utilisent l’identification et la saisie manuelle du prix.

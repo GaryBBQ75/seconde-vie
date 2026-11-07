@@ -1,3 +1,4 @@
+import {mountProductAssist} from './product-assist.js';
 import { canOpen as baseCanOpen, hasRole, roleNames, organisations, demoPhoto } from './access.js';
 import { discountCents } from './checkout.js';
 import { readBasket, saveBasket } from './basket.js';
@@ -897,7 +898,7 @@ function choice(name, value, label, { checked, graphic = '', hint = '', required
   </label>`;
 }
 
-function receive({ parent, barcode = '', title = '', category = '', catalog, reference, referenceConfirmed = false, description, photo, fromScan = false, market, kind = 'item', mode = 'quantite', zoneId, origin = origins[0], inline = false, resume } = {}) {
+function receive({ parent, barcode = '', title = '', category = '', catalog, reference, referenceConfirmed = false, description, photo, fromScan = false, market, kind = 'item', mode = 'quantite', zoneId, origin = origins[0], inline = false, resume, priceCents, condition='', note='' } = {}) {
   const site = parent ? getSite(parent.site_id) : workingSite();
   if (!site) return report(new Error('Ajoutez un site avant de réceptionner un don.'));
   const saved = inline ? resume?.fields || {} : {};
@@ -939,7 +940,7 @@ function receive({ parent, barcode = '', title = '', category = '', catalog, ref
     ${!parent || parent.grams != null ? `<div data-weight>${field('Poids (kg)', input('weight', 'type="number" inputmode="decimal" min="0.001" step="0.001" placeholder="0,000"'))}</div>` : ''}
     <div class="form-row intake-name-price">
       ${field('Nom de l’entrée (facultatif)', input('title', `maxlength="150" placeholder="Ex. Carton de livres" value="${esc(title)}"`))}
-      ${field('Prix de vente (€, facultatif)', input('price', 'type="number" min="0" max="1000000" step="0.01" inputmode="decimal" placeholder="À définir"'))}
+      ${field('Prix de vente (€, facultatif)', input('price', 'type="number" min="0" max="1000000" step="0.01" inputmode="decimal" placeholder="À définir" value="'+(priceCents==null?'':priceCents/100)+'"'))}
     </div>
     <div class="price-suggestion" data-price-suggestion aria-live="polite" hidden></div>
     ${market ? '<details class="entry-extras"><summary>Prix vus en ligne</summary><div data-intake-market aria-live="polite"></div></details>' : ''}
@@ -953,8 +954,8 @@ function receive({ parent, barcode = '', title = '', category = '', catalog, ref
       ${field('Provenance', `<select name="origin" ${parent ? 'disabled' : ''}>${origins.map(x => option(x,x,parent?.origin || origin)).join('')}</select>`)}
     </div>
     <details class="entry-extras" ${catalog || (reference && Object.keys(reference).length) || description || (inline && detailedIntake) ? 'open' : ''}><summary>Descriptif, caractéristiques et note</summary><div class="stack">
-      ${descriptionField(description ?? catalogDescription(catalog))}<div data-reference-fields></div>
-      ${field('Note', '<textarea name="note" maxlength="1000"></textarea>')}
+      ${descriptionField(description ?? catalogDescription(catalog))}${field('État constaté (facultatif)',input('condition',`maxlength="100" placeholder="À vérifier au tri" value="${esc(condition)}"`))}<div data-reference-fields></div>
+      ${field('Note', `<textarea name="note" maxlength="1000">${esc(note)}</textarea>`)}
       ${parent ? '' : `<div data-optional-weight>${field('Poids mesuré (kg, facultatif)', input('weight_optional', 'type="number" inputmode="decimal" min="0.001" step="0.001"'))}</div>`}
       ${field('Code-barres d’origine (EAN ou ISBN)', input('barcode', `maxlength="80" inputmode="numeric" value="${esc(barcode)}"`) + '<small>Le code imprimé sur l’objet ou son emballage. Facultatif.</small>')}
     </div></details>
@@ -1106,7 +1107,7 @@ function receive({ parent, barcode = '', title = '', category = '', catalog, ref
       zone_id:data.get('zone_id'), quantity:data.get('quantity') ? Number(data.get('quantity')) : null,
       price_cents:data.get('price') ? Math.round(Number(data.get('price')) * 100) : null,
       grams:weight ? Math.round(Number(weight) * 1000) : null,
-      note:data.get('note'), barcode:data.get('barcode'), origin:data.get('origin'), contact_id:data.get('contact_id'), parent_id:parent?.id, catalog,
+      condition:data.get('condition'), note:data.get('note'), barcode:data.get('barcode'), origin:data.get('origin'), contact_id:data.get('contact_id'), parent_id:parent?.id, catalog,
       reference:formReference(data, data.get('category')), description:data.get('description'), ...photoData,
     } });
     if (inline) clearIntakeDraft(draftScope(),site.id);
@@ -1123,14 +1124,14 @@ function receive({ parent, barcode = '', title = '', category = '', catalog, ref
 }
 
 function priceMessage(estimate) {
-  if (!estimate) return '<p class="help">Pas encore assez de ventes comparables sur ce site.</p>';
+  if (!estimate) return '<p class="help">Pas de repère interne suffisant sur ce site.</p>';
   if (estimate.rate) {
     return `<p><strong>Prix indicatif ${euro.format(estimate.cents / 100)}</strong></p>
       <p class="help">Barème de démonstration · ${estimate.rate} % du prix éditeur neuf.</p>`;
   }
   const { cents, count, low, high, basis } = estimate;
-  return `<p><strong>Prix indicatif ${euro.format(cents / 100)}</strong></p>
-    <p class="help">${basis} · ${count} vente${count > 1 ? 's' : ''} enregistrée${count > 1 ? 's' : ''} sur ce site${low !== high ? ` · ${euro.format(low / 100)} à ${euro.format(high / 100)}` : ''}.</p>`;
+  return `<p><strong>Repère interne ${euro.format(cents / 100)}</strong></p>
+    <p class="help">${basis} · ${count} fiche${count > 1 ? 's' : ''} marquée${count > 1 ? 's' : ''} vendue${count > 1 ? 's' : ''} sur ce site · prix enregistrés avant éventuelle remise${low !== high ? ` · ${euro.format(low / 100)} à ${euro.format(high / 100)}` : ''}.</p>`;
 }
 
 function bindPriceSuggestion(form, item, showMissing = false) {
@@ -1156,6 +1157,7 @@ function bindPriceSuggestion(form, item, showMissing = false) {
 }
 
 async function encodePhoto(file) {
+  if(file.size>20*1024*1024)throw new Error('Choisissez une photo de moins de 20 Mo.');
   const url = URL.createObjectURL(file);
   const image = new Image();
   try {
@@ -1164,12 +1166,15 @@ async function encodePhoto(file) {
       image.onerror = () => reject(new Error('Cette photo ne peut pas être lue. Choisissez un fichier JPEG ou PNG.'));
       image.src = url;
     });
-    const factor = Math.min(1, 1250 / Math.max(image.naturalWidth, image.naturalHeight));
-    const canvas = document.createElement('canvas');
-    canvas.width = Math.max(1, Math.round(image.naturalWidth * factor));
-    canvas.height = Math.max(1, Math.round(image.naturalHeight * factor));
-    canvas.getContext('2d').drawImage(image, 0, 0, canvas.width, canvas.height);
-    return canvas.toDataURL('image/jpeg', .74);
+    const canvas=document.createElement('canvas');
+    let side=1250;
+    for(let attempt=0;attempt<6;attempt++) {
+      const factor=Math.min(1,side/Math.max(image.naturalWidth,image.naturalHeight));
+      canvas.width=Math.max(1,Math.round(image.naturalWidth*factor));canvas.height=Math.max(1,Math.round(image.naturalHeight*factor));
+      const ctx=canvas.getContext('2d');ctx.fillStyle='#fff';ctx.fillRect(0,0,canvas.width,canvas.height);ctx.drawImage(image,0,0,canvas.width,canvas.height);
+      const encoded=canvas.toDataURL('image/jpeg',.74);if(encoded.length<=390000)return encoded;side*=.8;
+    }
+    throw new Error('Cette photo reste trop volumineuse. Recadrez l’objet ou choisissez une autre image.');
   } finally { URL.revokeObjectURL(url); }
 }
 
@@ -1436,7 +1441,7 @@ function scanPage(main) {
       <div id="scan-error" class="form-error" role="alert"></div>
     </section>
     <section class="scan-panel scan-object" aria-labelledby="scan-object-title">
-      <div><h2 id="scan-object-title">Sans code-barres</h2><p class="help">Photographiez l’objet entier pour retrouver des fiches du même type sur ce site.</p></div>
+      <div><h2 id="scan-object-title">Sans code-barres</h2><p class="help">Identifiez le produit avec Eden AI, puis comparez les annonces d’occasion pour proposer un prix ressourcerie.</p></div>
       <div class="scan-actions">
         ${canFlip ? `<label class="btn scan-photo">${icon('camera', 16)} Photographier l’objet
           <input type="file" id="object-capture" accept="image/*" capture="environment">
@@ -1445,7 +1450,7 @@ function scanPage(main) {
           <input type="file" id="object-photo" accept="image/*">
         </label>
       </div>
-      <p><a href="/photo-bench.html">Comparer la reconnaissance photo</a></p>
+      <p class="help">Ajoutez ensuite une vue de l’étiquette pour préciser la marque et le modèle.</p>
     </section><section id="scan-results" class="scan-results" aria-live="polite"></section>
     <section id="market-panel" class="scan-panel scan-object market-panel" aria-labelledby="market-title" hidden>
       <h2 id="market-title">Prix vus en ligne</h2>
@@ -1471,7 +1476,7 @@ function scanPage(main) {
   let lookup = 0;
   if (!handheld.matches) codeInput.focus({ preventScroll:true });
 
-  async function renderResult(rawCode) {
+  async function renderResult(rawCode,prefill={}) {
     const current = ++lookup;
     const key = normalizeScanCode(rawCode);
     target.innerHTML = '';
@@ -1516,7 +1521,7 @@ function scanPage(main) {
       const item = rows[0];
       const title = item && item.title !== item.category ? item.title : '';
       return {
-        barcode:key, title:title || info?.title || [info?.brand, info?.model].filter(Boolean).join(' '),
+        photo:prefill.photo,priceCents:prefill.priceCents,condition:prefill.condition,barcode:key, title:title || info?.title || [info?.brand, info?.model].filter(Boolean).join(' '),
         category:referenceRow?.category || item?.category || (type === 'book' ? 'Livres' : ''),
         catalog:info, reference:referenceRow?.reference, referenceConfirmed:referenceRow?.reference_confirmed,
         fromScan:Boolean(type), market:type ? market : undefined,
@@ -1610,41 +1615,10 @@ function scanPage(main) {
       return;
     }
     if (!active()) return;
-    let type, unavailable;
-    try {
-      const { inspectObjectPhoto } = await import('./photo-search.js');
-      type = await inspectObjectPhoto(photo);
-    } catch { unavailable = true; }
-    if (!active()) return;
-
-    const site = workingSite();
-    const category = type && siteCategories(site).includes(type.category) ? type.category : '';
-    const matches = type ? stock.filter(row => row.site_id === site?.id && matchesObjectType(row, type)).slice(0, 4) : [];
-    const canReceive = site && allowed('reception', 'tri');
-    const title = type?.name || '';
-    const media = !type || ['Livres','CD','Vinyles','DVD'].includes(type.category);
-    market.search(title, { media });
-    const summary = type ? 'Type proposé · ' + title : unavailable ? 'Analyse photo indisponible' : 'Type d’objet incertain';
-    const hint = type ? (category ? category + ' · Vérifiez le type avant de créer la fiche.' : 'Choisissez une catégorie acceptée par ce site.')
-      : 'Vous pouvez saisir les informations à la main.';
-    target.innerHTML = `<div class="object-photo-summary"><img src="${esc(photo)}" alt="Photo de l’objet sélectionnée"><div>
-      <h2>${esc(summary)}</h2><p class="help">${esc(hint)}</p></div></div>`
-      + (type ? `<div class="price-suggestion">${priceMessage(priceEstimate(stock, { title, category, site_id:site?.id, kind:'item' }))}</div>` : '')
-      + (canReceive ? `<div class="object-create"><label class="check"><input type="checkbox" id="object-keep-photo"> Garder la photo sur la fiche</label>
-        ${button(type ? 'Créer avec ce type' : 'Créer une fiche', 'plus', 'object-add', 'primary')}</div>` : '')
-      + (matches.length ? `<h3 class="object-matches-title">Fiches du même type</h3><p class="help">Reprenez les caractéristiques seulement si c’est le même modèle.</p>
-        <ul class="object-matches">${matches.map(row => `<li>
-          <button type="button" class="object-match-title" data-stock="${esc(row.id)}"><strong>${esc(row.title)}</strong><small>${esc([row.reference?.brand, row.reference?.model, row.code].filter(Boolean).join(' · '))}</small></button>
-          ${canReceive && category ? `<button type="button" class="btn" data-reuse-object="${esc(row.id)}">Reprendre la fiche</button>` : ''}
-        </li>`).join('')}</ul>` : type ? '<p class="help">Aucune fiche du même type sur ce site.</p>' : '');
-    bindStock(target);
-    const keptPhoto = () => target.querySelector('#object-keep-photo')?.checked ? photo : undefined;
-    on('object-add', () => receive({ title, category, photo:keptPhoto(), fromScan:true }));
-    target.querySelectorAll('[data-reuse-object]').forEach(control => control.addEventListener('click', () => {
-      const row = matches.find(item => item.id === control.dataset.reuseObject);
-      receive({ title:row.title, category:row.category, description:row.description ?? catalogDescription(row.catalog),
-        reference:effectiveReference(row), referenceConfirmed:true, photo:keptPhoto(), fromScan:true });
-    }));
+    const site=workingSite();
+    if(!site)return notice('Choisissez un site de réception.');
+    await mountProductAssist(target,{photo,site,categories:siteCategories(site),esc,euro,referenceInputs,encodePhoto,notice,
+      canCreate:allowed('reception','tri'),currency:config.currency || 'EUR',allowPrice:demoMode || Boolean(config.intake?.price && isModuleEnabled(config,'caisse')),onCreate:draft=>receive(draft),onCode:(code,draft)=>renderResult(code,draft)});
   }
   on('object-photo', readObjectPhoto, 'change');
   on('object-capture', readObjectPhoto, 'change');
@@ -2442,6 +2416,7 @@ async function init() {
 window.addEventListener('core-sync',event=>{syncStatus=event.detail.status;updateSyncBadge();});
 async function syncWorkspace() {
   if(!me || demoMode)return;
+  if(document.querySelector('[data-assist-form][data-dirty]'))throw new Error('Enregistrez ou quittez l’identification avant d’actualiser cet écran.');
   if(page!=='accueil' && document.querySelector('form[data-dirty]'))throw new Error('Enregistrez vos modifications avant d’actualiser cet écran.');
   await persistEntry?.();await refresh();render();notice('Espace actualisé.');
 }
@@ -2481,6 +2456,7 @@ function updateSyncBadge() {
 window.addEventListener('core-sync',event=>{syncStatus=event.detail.status;updateSyncBadge();});
 async function syncWorkspace() {
   if(!me || demoMode)return;
+  if(document.querySelector('[data-assist-form][data-dirty]'))throw new Error('Enregistrez ou quittez l’identification avant d’actualiser cet écran.');
   await persistEntry?.();await refresh();render();notice('Espace actualisé.');
 }
 if(!demoMode)setInterval(async()=>{
@@ -2488,7 +2464,7 @@ if(!demoMode)setInterval(async()=>{
   try {
     const value=await api('/revision');
     if(value.revision<=currentRevision())return;
-    const editing=document.querySelector('[data-planning-busy="1"]') || dialog.hasAttribute('open') || document.querySelector('form[data-saving]') || document.querySelector('#intake-form[data-dirty]');
+    const editing=document.querySelector('[data-planning-busy="1"]') || dialog.hasAttribute('open') || document.querySelector('form[data-saving]') || document.querySelector('#intake-form[data-dirty]') || document.querySelector('[data-assist-form][data-dirty]');
     if(editing) {syncStatus='updates';updateSyncBadge();}
     else {await refresh();render();}
   } catch { /* The sync badge already explains a network or access failure. */ }

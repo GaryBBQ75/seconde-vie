@@ -176,7 +176,7 @@ function newStock(body, state, me) {
     id: id(), code: (kind === 'lot' ? 'LOT-' : 'OBJ-') + id().slice(0,10).toUpperCase(),
     title, kind, category, grams, quantity, state: 'tri', price_cents:price,
     created_at: now(), history: [], barcode:text(barcode,'le code-barres',80,false),
-    note:text(note,'la note',1000,false), origin:text(body.origin,'la provenance',100,false),
+    condition:text(body.condition,'l’état constaté',100,false), note:text(note,'la note',1000,false), origin:text(body.origin,'la provenance',100,false),
     contact_id:body.contact_id ? find(state.contacts ?? [],body.contact_id,'Contact introuvable.').id : null,
   };
   if (barcode && body.catalog?.code === normalizeScanCode(barcode)) row.catalog = body.catalog;
