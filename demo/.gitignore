@@ -8,3 +8,4 @@
 /public/vendor/tesseract/tesseract-core-lstm.wasm.js
 /public/vendor/tesseract/fra.traineddata.gz
 /public/vendor/zxing/zxing-browser.min.js
+/public/vendor/planning-calendar.*

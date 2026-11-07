@@ -45,6 +45,7 @@ let origins = ['Apport volontaire','Collecte à domicile','Collecte partenaire',
 const handheld = window.matchMedia('(max-width: 600px)');
 const defaultPage = () => handheld.matches ? 'scanner' : 'accueil';
 let stopCamera;
+let planningCleanup;
 let chooseCashier;
 const cameraPreferenceKey = 'secondevie-camera';
 let preferredCamera = localStorage.getItem(cameraPreferenceKey) || 'auto';
@@ -232,6 +233,7 @@ window.addEventListener('popstate', () => { if (me) go(location.hash.slice(1), t
 
 const nav = (pages) => pages.filter(([key]) => canOpen(me,key)).map(([key, sym]) => `<a href="#${key}" class="navlink ${page === key ? 'active' : ''}" data-page="${key}" aria-label="${pageNames[key]}" title="${pageNames[key]}" ${page === key ? 'aria-current="page"' : ''}>${icon(sym,17)}<span>${pageNames[key]}</span></a>`).join('');
 function render(draft) {
+  planningCleanup?.();planningCleanup=null;
   endScan();
   persistEntry=null;
   chooseCashier = null;
@@ -2280,7 +2282,7 @@ function toursPage(main) {
 }
 
 function planningPage(main) {
-  mountPlanning(main,{api,esc,header,field,input,button,formEnd,formSubmit,showDialog,changed,notice,me,config,sites,siteFilter,printContent,roleNames}).catch(report);
+  mountPlanning(main,{api,esc,header,field,input,button,formEnd,formSubmit,showDialog,changed,notice,me,config,sites,siteFilter,printContent,roleNames}).then(cleanup=>{if(main.isConnected)planningCleanup=cleanup;else cleanup?.();}).catch(report);
 }
 function sitePage(main) {
   main.innerHTML = header('Sites et zones', 'Organisez les lieux et nommez leurs emplacements.', admin() ? button('Ajouter un site','plus','new-site','primary') : '')
@@ -2381,6 +2383,7 @@ function profileAvatar(member) {
 }
 
 function showSignIn(initialOrg = 'passages') {
+  planningCleanup?.();planningCleanup=null;
   let org = initialOrg;
   root.innerHTML = `<main class="content sign-in">
     <img src="/mark.svg" alt="" width="48" height="48"><h1>Tester Seconde Vie</h1>
@@ -2450,7 +2453,7 @@ if(!demoMode)setInterval(async()=>{
   try {
     const value=await api('/revision');
     if(value.revision<=currentRevision())return;
-    const editing=dialog.hasAttribute('open') || document.querySelector('form[data-saving]') || document.querySelector('form[data-dirty]');
+    const editing=document.querySelector('[data-planning-busy="1"]') || dialog.hasAttribute('open') || document.querySelector('form[data-saving]') || document.querySelector('form[data-dirty]');
     if(editing) {syncStatus='updates';updateSyncBadge();}
     else {await refresh();render();}
   } catch { /* The sync badge already explains a network or access failure. */ }
@@ -2485,7 +2488,7 @@ if(!demoMode)setInterval(async()=>{
   try {
     const value=await api('/revision');
     if(value.revision<=currentRevision())return;
-    const editing=dialog.hasAttribute('open') || document.querySelector('form[data-saving]') || document.querySelector('#intake-form[data-dirty]');
+    const editing=document.querySelector('[data-planning-busy="1"]') || dialog.hasAttribute('open') || document.querySelector('form[data-saving]') || document.querySelector('#intake-form[data-dirty]');
     if(editing) {syncStatus='updates';updateSyncBadge();}
     else {await refresh();render();}
   } catch { /* The sync badge already explains a network or access failure. */ }

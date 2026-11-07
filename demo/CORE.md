@@ -93,3 +93,7 @@ Les saisies utilisent le fuseau de la structure, affiché dans l’interface. Un
 L’entrée `/?demo=1#planning` présente les profils fictifs en un clic, responsable compris, sans mot de passe ni code. Le changement de profil conserve la page si le nouveau rôle y a accès. Les données de démonstration restent dans le navigateur. Les anciens formulaires API à code restent compatibles pour les tests existants ; ils ne sont plus requis par l’interface de démonstration.
 
 Cet accès direct n’est pas une authentification de production. L’espace partagé `/` utilise toujours l’identité Sites et ses permissions serveur. Son audience est préservée et aucun profil de démonstration ne donne accès aux données D1/R2.
+
+### Interaction dans l’agenda
+
+La coordination peut glisser une personne sur une heure pour préparer une affectation en brouillon, déplacer les créneaux et ajuster leur durée par les poignées. Les vues semaine/jour et les couleurs de poste facilitent la lecture. La sélection puis le clic et le formulaire restent disponibles ; une dérogation à une indisponibilité exige le formulaire et un motif. Les refus du serveur rétablissent le créneau visuel. Le calendrier des membres reste consultatif ; leurs réponses et déclarations utilisent les parcours existants.

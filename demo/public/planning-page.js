@@ -1,3 +1,4 @@
+import {mountInteractiveCalendar} from './planning-calendar.js';
 import {addDays,mondayOf,dateKey,localInput,localToISO,overlap,published,exportCalendar} from './planning-model.js';
 
 export async function mountPlanning(main,{api,esc,header,field,input,button,formEnd,formSubmit,showDialog,changed,notice,me,config,sites,siteFilter,printContent,roleNames}) {
@@ -5,11 +6,13 @@ export async function mountPlanning(main,{api,esc,header,field,input,button,form
   const data=await api('/planning');if(!main.isConnected)return;
   const zone=data.timeZone,key='seconde-vie-planning-'+me.org+'-'+me.id;
   let saved={};try{saved=JSON.parse(sessionStorage.getItem(key)||'{}');}catch{}
-  const modes=data.manager?['week','people','list','availability']:['mine','team','availability'];
+  const modes=data.manager?['week','people','list','availability']:['mine','agenda','team','availability'];
   let week;try{week=mondayOf(saved.week || dateKey(Date.now(),zone));}catch{week=mondayOf(dateKey(Date.now(),zone));}
   let mode=modes.includes(saved.mode)?saved.mode:modes[0],person=data.manager && data.people.some(row=>row.id===saved.person)?saved.person:'',activity=config.activities.includes(saved.activity)?saved.activity:'';
-  const labels={week:'Semaine',people:'Par personne',list:'Liste',mine:'Mes créneaux',team:'Équipe',availability:'Disponibilités'};
-  const save=()=>sessionStorage.setItem(key,JSON.stringify({week,mode,person,activity}));
+  let calendarCleanup=null,calendarGeneration=0,disposed=false;
+  const drag={member:saved.drag?.member || '',activity:saved.drag?.activity || '',duration:saved.drag?.duration,site:saved.drag?.site || '',calendarView:saved.drag?.calendarView,focus:saved.drag?.focus};
+  const labels={week:'Agenda',agenda:'Mon agenda',people:'Par personne',list:'Liste',mine:'Mes créneaux',team:'Équipe',availability:'Disponibilités'};
+  const save=()=>sessionStorage.setItem(key,JSON.stringify({week,mode,person,activity,drag}));
   const on=(id,callback,event='click')=>main.querySelector('#'+id)?.addEventListener(event,e=>{try{Promise.resolve(callback(e)).catch(error=>notice(error.message));}catch(error){notice(error.message);}});
   const dayLabel=day=>new Intl.DateTimeFormat('fr-FR',{weekday:'short',day:'numeric',month:'short',timeZone:'UTC'}).format(new Date(day+'T12:00:00Z'));
   const time=timestamp=>localInput(timestamp,zone).slice(11);
@@ -17,7 +20,7 @@ export async function mountPlanning(main,{api,esc,header,field,input,button,form
   const hours=rows=>new Intl.NumberFormat('fr-FR',{maximumFractionDigits:1}).format(rows.reduce((sum,row)=>sum+Math.max(0,Math.min(+new Date(row.ends_at),+new Date(localToISO(addDays(week,7)+'T00:00',zone)))-Math.max(+new Date(row.starts_at),+new Date(localToISO(week+'T00:00',zone)))),0)/3600000);
   const windowFor=day=>({starts_at:localToISO(day+'T00:00',zone),ends_at:localToISO(addDays(day,1)+'T00:00',zone)});
   const weekPeriod=()=>({starts_at:localToISO(week+'T00:00',zone),ends_at:localToISO(addDays(week,7)+'T00:00',zone)});
-  const selectedRows=(rows=data.shifts)=>rows.filter(row=>overlap(row,weekPeriod()) && (!siteFilter || row.site_id===siteFilter) && (!person || row.member_id===person) && (!activity || row.activity===activity)).sort((a,b)=>a.starts_at.localeCompare(b.starts_at));
+  const selectedRows=(rows=data.shifts)=>rows.filter(row=>overlap(row,weekPeriod()) && (!siteFilter || row.site_id===siteFilter) && (['week','agenda'].includes(mode) || !person || row.member_id===person) && (['week','agenda'].includes(mode) || !activity || row.activity===activity)).sort((a,b)=>a.starts_at.localeCompare(b.starts_at));
   const activityIndex=name=>Math.max(0,config.activities.indexOf(name))%6;
   const responseNames={pending:'À confirmer',confirmed:'Confirmé',unavailable:'Ne peut pas venir'};
   function chips(row,team=false) {
@@ -33,6 +36,8 @@ export async function mountPlanning(main,{api,esc,header,field,input,button,form
       <span class="plan-slot-time">${time(row.starts_at)} — ${esc(end)}</span><strong>${esc(row.activity)}</strong>${data.manager || team?'<span>'+esc(row.member_name)+'</span>':''}<small>${esc(row.site_name)}</small>${!compact?'<span class="plan-badges">'+chips(row,team)+'</span>':''}</button>`;
   }
   function render() {
+    if(disposed)return;calendarCleanup?.();calendarCleanup=null;const generation=++calendarGeneration;
+    main.classList.toggle('has-planning-agenda',['week','agenda'].includes(mode));
     save();const rows=selectedRows(),active=rows.filter(row=>!row.cancelled_at),days=Array.from({length:7},(_,i)=>addDays(week,i)),today=dateKey(Date.now(),zone);
     const drafts=active.filter(row=>row.publication==='draft'),alerts=active.filter(row=>row.response==='unavailable' || row.has_unavailability || row.member_inactive),pending=active.filter(row=>row.publication!=='draft' && (!row.response || row.response==='pending'));
     const title=data.manager?'Planning de l’équipe':'Mon planning';
@@ -40,12 +45,19 @@ export async function mountPlanning(main,{api,esc,header,field,input,button,form
       (data.manager?button('Ajouter un créneau','plus','plan-add','primary'):button('Déclarer une disponibilité','plus','availability-add'))+button('Exporter mon agenda','download','plan-calendar'))
       +`<div class="plan-toolbar surface"><div class="plan-week-nav">${button('Semaine précédente','','plan-prev')}<label class="field"><span>Semaine du</span><input id="plan-week" type="date" value="${week}"></label>${button('Semaine suivante','','plan-next')}${button('Aujourd’hui','','plan-today')}</div><p class="help">${esc(dayLabel(week))} au ${esc(dayLabel(addDays(week,6)))} · heures de la structure (${esc(zone)})</p></div>
       <div class="plan-tabs" role="tablist" aria-label="Vues du planning">${modes.map(value=>`<button class="btn ${mode===value?'primary':''}" type="button" role="tab" aria-selected="${mode===value}" data-mode="${value}">${labels[value]}</button>`).join('')}</div>
-      ${mode!=='availability'?`<div class="plan-filters">${data.manager?field('Personne',`<select id="plan-person"><option value="">Toute l’équipe</option>${data.people.map(member=>`<option value="${member.id}" ${person===member.id?'selected':''}>${esc(member.name)}</option>`).join('')}</select>`):''}${field('Poste',`<select id="plan-activity"><option value="">Tous les postes</option>${config.activities.map(value=>`<option ${activity===value?'selected':''}>${esc(value)}</option>`).join('')}</select>`)}</div>`:''}
+      ${!['availability','week','agenda'].includes(mode)?`<div class="plan-filters">${data.manager?field('Personne',`<select id="plan-person"><option value="">Toute l’équipe</option>${data.people.map(member=>`<option value="${member.id}" ${person===member.id?'selected':''}>${esc(member.name)}</option>`).join('')}</select>`):''}${field('Poste',`<select id="plan-activity"><option value="">Tous les postes</option>${config.activities.map(value=>`<option ${activity===value?'selected':''}>${esc(value)}</option>`).join('')}</select>`)}</div>`:''}
       ${mode!=='availability' && mode!=='team'?`<div class="plan-metrics"><div><strong>${active.length}</strong><span>créneaux ${data.manager?'affectés':'cette semaine'}</span></div><div><strong>${hours(active)} h</strong><span>prévues</span></div><div><strong>${data.manager?drafts.length:active.filter(row=>row.response==='confirmed').length}</strong><span>${data.manager?'brouillons':'confirmés'}</span></div><div><strong>${data.manager?alerts.length:pending.length}</strong><span>${data.manager?'points à régler':'à confirmer'}</span></div></div>`:''}
       ${data.manager && mode!=='availability'?`<div class="plan-actions">${button(drafts.length===1?'Publier le brouillon':'Publier les '+drafts.length+' brouillons','check','plan-publish','primary',drafts.length?'':'disabled')}${button('Copier vers la semaine suivante','','plan-copy')}${button('Imprimer la semaine','printer','plan-print')}<span class="help">Les brouillons sont visibles uniquement par la coordination.</span></div>`:''}<div id="plan-view"></div>`;
     const view=main.querySelector('#plan-view');
     if(mode==='availability')renderAvailability(view);
-    else if(mode==='week')view.innerHTML=`<div class="plan-week-scroll"><div class="plan-week-grid">${days.map(day=>`<section class="plan-day ${day===today?'is-today':''}"><div class="plan-day-heading"><h2>${esc(dayLabel(day))}</h2><button class="btn ghost" type="button" data-day="${day}" aria-label="Ajouter un créneau le ${esc(dayLabel(day))}">+</button></div><div class="plan-day-slots">${rows.filter(row=>overlap(row,windowFor(day))).map(row=>slot(row)).join('') || '<p class="plan-empty">Aucun créneau</p>'}</div></section>`).join('')}</div></div>`;
+    else if(mode==='week' || mode==='agenda') {
+      view.innerHTML='<div class="surface empty">Chargement de l’agenda…</div>';
+      mountInteractiveCalendar(view,{data,rows,week,zone,sites,siteFilter,activities:config.activities,preferences:drag,esc,roleNames,api,
+        onOpen:id=>showShift(id).catch(error=>notice(error.message)),onCreate:options=>editShift(null,options),onSaved:changed,notice,
+        onPreference:value=>{Object.assign(drag,value);save();},
+        onNavigate:value=>{if(disposed || generation!==calendarGeneration)return;Object.assign(drag,value);if(value.week!==week){week=value.week;render();}else save();},
+      }).then(cleanup=>{if(disposed || generation!==calendarGeneration || !view.isConnected)cleanup();else calendarCleanup=cleanup;}).catch(error=>{if(view.isConnected && generation===calendarGeneration){view.innerHTML='<div class="surface empty">L’agenda est indisponible. Utilisez la vue Liste pour continuer.</div>';notice(error.message);}});
+    }
     else if(mode==='people') {
       const people=data.people.filter(member=>!person || member.id===person);
       view.innerHTML=`<div class="plan-people-scroll"><table class="plan-people"><thead><tr><th>Personne</th>${days.map(day=>`<th>${esc(dayLabel(day))}</th>`).join('')}</tr></thead><tbody>${people.map(member=>{const mine=rows.filter(row=>row.member_id===member.id);return `<tr><th scope="row">${esc(member.name)}<small>${hours(mine)} h prévues</small></th>${days.map(day=>`<td>${mine.filter(row=>overlap(row,windowFor(day))).map(row=>slot(row,{compact:true})).join('') || `<button type="button" class="plan-empty-add" data-day="${day}" data-member="${member.id}" aria-label="Affecter ${esc(member.name)} le ${esc(dayLabel(day))}">+</button>`}</td>`).join('')}</tr>`;}).join('')}</tbody></table></div>`;
@@ -58,8 +70,8 @@ export async function mountPlanning(main,{api,esc,header,field,input,button,form
         +(!listed.length?'<section class="surface empty"><h2>Aucun créneau cette semaine</h2><p>Choisissez une autre semaine ou déclarez vos disponibilités.</p></section>':'');
       on('plan-upcoming',()=>showShift(upcoming.id));
     }
-    on('plan-prev',()=>{week=addDays(week,-7);render();});on('plan-next',()=>{week=addDays(week,7);render();});on('plan-today',()=>{week=mondayOf(today);render();});
-    on('plan-week',event=>{if(event.target.value){week=mondayOf(event.target.value);render();}},'change');
+    on('plan-prev',()=>{week=addDays(week,-7);drag.focus=week;render();});on('plan-next',()=>{week=addDays(week,7);drag.focus=week;render();});on('plan-today',()=>{week=mondayOf(today);drag.focus=today;render();});
+    on('plan-week',event=>{if(event.target.value){week=mondayOf(event.target.value);drag.focus=event.target.value;render();}},'change');
     on('plan-person',event=>{person=event.target.value;render();},'change');on('plan-activity',event=>{activity=event.target.value;render();},'change');
     main.querySelectorAll('[data-mode]').forEach(control=>control.addEventListener('click',()=>{mode=control.dataset.mode;person='';render();}));
     main.querySelectorAll('[data-day]').forEach(control=>control.addEventListener('click',()=>editShift(null,{day:control.dataset.day,member:control.dataset.member})));
@@ -83,12 +95,12 @@ export async function mountPlanning(main,{api,esc,header,field,input,button,form
     function respond(response) {showDialog(response==='confirmed'?'Confirmer ma présence':'Signaler un empêchement',`<form id="plan-response-form" class="stack"><p>${esc(row.activity)} · ${esc(stamp(row.starts_at))}</p>${field('Message au responsable'+(response==='confirmed'?' (facultatif)':''),`<textarea name="message" maxlength="500" ${response==='unavailable'?'required':''}></textarea>`)}<p class="help">Le responsable voit votre réponse. Un empêchement n’annule pas automatiquement le créneau.</p>${formEnd(response==='confirmed'?'Confirmer':'Envoyer mon signalement')}</form>`);formSubmit('plan-response-form',async form=>{await api('/shifts/'+id+'/respond',{method:'POST',body:{response,message:form.get('message')}});await changed('Réponse enregistrée.');});}
     document.getElementById('plan-confirm')?.addEventListener('click',()=>respond('confirmed'));document.getElementById('plan-unavailable')?.addEventListener('click',()=>respond('unavailable'));
   }
-  function editShift(row,{day=week,member=person}={}) {
-    const site=row?.site_id || siteFilter || sites[0]?.id;
+  function editShift(row,{day=week,member=person,site:preferredSite,activity:preferredActivity,starts_at,ends_at}={}) {
+    const site=row?.site_id || preferredSite || siteFilter || sites[0]?.id;
     if(!site || !data.people.length)return notice('Ajoutez un site et une personne active avant de planifier.');
-    showDialog(row?'Modifier le créneau':'Affecter un créneau',`<form id="plan-shift-form" class="stack"><div class="form-row">${field('Site',`<select name="site_id">${sites.map(value=>`<option value="${value.id}" ${value.id===site?'selected':''}>${esc(value.name)}</option>`).join('')}</select>`)}${field('Poste',`<select name="activity">${config.activities.map(value=>`<option ${value===(row?.activity || activity)?'selected':''}>${esc(value)}</option>`).join('')}</select>`)}</div>
+    showDialog(row?'Modifier le créneau':'Affecter un créneau',`<form id="plan-shift-form" class="stack"><div class="form-row">${field('Site',`<select name="site_id">${sites.map(value=>`<option value="${value.id}" ${value.id===site?'selected':''}>${esc(value.name)}</option>`).join('')}</select>`)}${field('Poste',`<select name="activity">${config.activities.map(value=>`<option ${value===(row?.activity || preferredActivity || activity)?'selected':''}>${esc(value)}</option>`).join('')}</select>`)}</div>
       <fieldset class="plan-member-picker"><legend>${row?'Personne affectée':'Personnes à affecter'}</legend>${data.people.map(value=>`<label class="check"><input type="${row?'radio':'checkbox'}" name="member_ids" value="${value.id}" ${value.id===(row?.member_id || member)?'checked':''}> <span><strong>${esc(value.name)}</strong><small>${esc(value.roles.map(role=>roleNames[role]).join(' · '))}</small></span></label>`).join('')}</fieldset>
-      <div class="form-row">${field('Début',input('starts_at',`type="datetime-local" required value="${row?localInput(row.starts_at,zone):day+'T09:00'}"`))}${field('Fin',input('ends_at',`type="datetime-local" required value="${row?localInput(row.ends_at,zone):day+'T12:00'}"`))}</div><p class="help">Horaires de la structure : ${esc(zone)}. Une modification d’horaire, de personne, de site ou de poste demande une nouvelle confirmation.</p>
+      <div class="form-row">${field('Début',input('starts_at',`type="datetime-local" required value="${row?localInput(row.starts_at,zone):starts_at?localInput(starts_at,zone):day+'T09:00'}"`))}${field('Fin',input('ends_at',`type="datetime-local" required value="${row?localInput(row.ends_at,zone):ends_at?localInput(ends_at,zone):day+'T12:00'}"`))}</div><p class="help">Horaires de la structure : ${esc(zone)}. Une modification d’horaire, de personne, de site ou de poste demande une nouvelle confirmation.</p>
       <div class="form-row">${field('Visibilité',`<select name="publication"><option value="draft" ${row?.publication==='draft' || !row?'selected':''}>Brouillon — coordination uniquement</option><option value="published" ${row && row.publication!=='draft'?'selected':''}>Publié — visible par l’équipe</option></select>`)}${!row?field('Répéter chaque semaine',`<select name="repeat_weeks">${[1,2,3,4,6,8].map(count=>`<option value="${count}">${count===1?'Une seule fois':count+' semaines'}</option>`).join('')}</select>`):''}</div>
       ${field('Consignes pour la personne',`<textarea name="note" maxlength="500">${esc(row?.note)}</textarea>`)}<details><summary>Dérogation à une indisponibilité</summary>${field('Motif de la dérogation',`<textarea name="override_reason" maxlength="500">${esc(row?.override_reason)}</textarea>`)}</details>${formEnd(row?'Enregistrer les modifications':'Créer les créneaux')}</form>`);
     formSubmit('plan-shift-form',async form=>{const members=form.getAll('member_ids');if(!members.length)throw new Error('Sélectionnez au moins une personne.');const body={...Object.fromEntries(form),starts_at:localToISO(form.get('starts_at'),zone),ends_at:localToISO(form.get('ends_at'),zone),...(row?{member_id:members[0]}:{member_ids:members,repeat_weeks:Number(form.get('repeat_weeks'))})};await api('/shifts'+(row?'/'+row.id:''),{method:row?'PATCH':'POST',body});await changed(row?'Créneau modifié.':'Créneaux préparés.');});
@@ -104,4 +116,5 @@ export async function mountPlanning(main,{api,esc,header,field,input,button,form
     formSubmit('availability-form',async form=>{await api('/availability',{method:'POST',body:{...Object.fromEntries(form),repeat_weeks:Number(form.get('repeat_weeks')),starts_at:localToISO(form.get('starts_at'),zone),ends_at:localToISO(form.get('ends_at'),zone)}});mode='availability';save();await changed('Déclaration enregistrée.');});
   }
   render();
+  return ()=>{disposed=true;calendarGeneration++;calendarCleanup?.();delete main.dataset.planningBusy;};
 }

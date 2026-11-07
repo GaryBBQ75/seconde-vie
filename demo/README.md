@@ -31,3 +31,9 @@ Les documents émis sont figés et numérotés ; les règlements sont enregistr�
 ## Planning et tests sans mot de passe
 
 Ouvrir `/?demo=1#planning` et choisir un profil fictif, sans code ni mot de passe. Le responsable prépare, copie et publie les semaines ; les membres confirment leurs créneaux et déclarent leurs disponibilités. Le rôle Coordination du planning délègue la gestion sans ouvrir l’administration des comptes. Les données de cette démonstration restent locales au navigateur ; l’espace partagé garde son identité et ses droits serveur.
+
+## Agenda interactif
+
+Le responsable utilise un agenda horaire en vue semaine ou jour : glisser un nom pour créer un brouillon, déplacer une affectation et tirer sa poignée pour ajuster la durée. La sélection d’un nom suivie d’un clic dans l’agenda et le formulaire offrent une alternative au glissement. Les conflits entre sites et les indisponibilités sont contrôlés côté interface et serveur ; un refus d’enregistrement restaure l’affichage. Les membres consultent leur agenda publié, sans commandes de déplacement.
+
+Le composant standard FullCalendar 7.1.4 est issu de son dépôt officiel (licence MIT), sans extension payante. `browser/planning-vendor.js` et `scripts/build-calendar.mjs` génèrent les ressources JavaScript, CSS et licences à partir des versions verrouillées dans `package-lock.json`, au lancement du développement et à la construction. Ces sorties sont ignorées dans Git. Les heures restent exprimées dans le fuseau de la structure.

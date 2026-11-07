@@ -3,7 +3,9 @@ import { readFile } from 'node:fs/promises';
 import { extname, resolve, sep } from 'node:path';
 import worker from '../worker/index.mjs';
 import { localBindings } from './local-bindings.mjs';
+import {buildCalendar} from './build-calendar.mjs';
 
+await buildCalendar();
 const bindings=await localBindings('.local');
 
 const publicDir = resolve('public');
