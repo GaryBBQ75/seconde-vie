@@ -27,6 +27,7 @@ import { matchesObjectType } from './object-types.js';
 import { priceEstimate } from './pricing.js';
 import { bindMarket } from './market.js';
 
+document.addEventListener('error',event=>{if(event.target?.matches?.('img[data-stock-cover]'))event.target.remove();},true);
 const root = document.querySelector('#app');
 const dialog = document.querySelector('#dialog');
 const toastArea = document.querySelector('#toast');
@@ -605,7 +606,7 @@ function cashPage(main) {
     const found = matches();
     results.innerHTML = found.length ? `<div class="cash-catalog">${found.slice(0, 24).map(row => `
       <button type="button" class="cash-product" data-cash-add="${esc(row.id)}" ${cart.has(row.id) ? 'disabled' : ''}>
-        ${categoryTile(row.category)}<span class="cash-product-name">${esc(row.title)}</span>
+        ${stockVisual(row)}<span class="cash-product-name">${esc(row.title)}</span>
         <small>${esc(row.code)} · ${esc(row.zone_name || row.category)}</small>
         <strong>${cart.has(row.id) ? 'Au panier' : priced(row) ? formatPrice(row.price_cents) : 'Définir le prix'}</strong>
       </button>`).join('')}</div>${found.length > 24 ? '<p class="help">24 articles affichés. Précisez la recherche pour voir les autres.</p>' : ''}`
@@ -838,7 +839,7 @@ function openSiteStock(site, state = '') {
   go(state === 'controle' ? 'controle' : 'stock', false, state);
 }
 
-function stockVisual(row){const src=row.cover_photo||itemPhotos(row)[0];return src?`<span class="stock-photo">${categoryTile(row.category)}<img src="${esc(src)}" alt="" data-stock-cover loading="lazy" decoding="async"></span>`:categoryTile(row.category);}
+function stockVisual(row){const src=row.cover_photo||itemPhotos(row)[0];return src?`<span class="stock-visual">${categoryTile(row.category)}<img src="${esc(src)}" alt="" data-stock-cover loading="lazy" decoding="async"></span>`:categoryTile(row.category);}
 function recentEntries(rows) {
   if (!rows.length) return '<div class="surface empty">Aucune entrée sur ce site.</div>';
   return `<ul class="recent-list">${rows.map(row => `<li><button type="button" data-stock="${esc(row.id)}">
@@ -1739,7 +1740,7 @@ async function detail(id) {
   const photos = itemPhotos(r);
   const description = r.description ?? catalogDescription(r.catalog);
   showDialog(r.title,`<div class="stack">
-    <div class="card-line">${categoryTile(r.category)}<strong class="detail-code">${esc(r.code)}</strong>${status(r)}</div>
+    <div class="card-line">${stockVisual(r)}<strong class="detail-code">${esc(r.code)}</strong>${status(r)}</div>
     ${ownGallery(photos)}
     ${catalogGallery(r.catalog, r.catalog_images || [])}
     <div class="notice">${esc(r.category)} · ${esc(measure(r))}${r.price_cents != null ? ' · '+euro.format(r.price_cents/100) : ''}<br>${r.state==='transit' ? 'En déplacement' : esc([r.site_name,r.zone_name].filter(Boolean).join(' / '))}
