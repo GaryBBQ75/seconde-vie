@@ -67,8 +67,9 @@ export function normalizeComparables(output,identity) {
     const condition=sourceCondition(text),used=/\b(occasion|seconde main|d occasion|reconditionne|used)\b/.test(words)||Boolean(condition)||/(?:^|\.)(leboncoin\.fr|vinted\.fr)$/.test(new URL(url).hostname);
     const isNew=/\b(neuf|neufs|neuve|neuves|new|jamais utilise|jamais utilisee)\b/.test(words)&&!/\b(comme neuf|comme neuve|quasi neuf|quasi neuve|reconditionne|remis a neuf)\b/.test(words);
     const listing=!/\/(?:recherche|search|catalog|sch\/i\.html)(?:[/?]|$)/i.test(new URL(url).pathname);
-    const cents=sourcePrice(text),hardReason=accessory?'Accessoire seul':lot?'Lot de plusieurs produits':!related?'Référence différente ou non confirmée':!listing?'Page de résultats':isNew?'Produit neuf':!used?'Occasion non précisée':!cents?'Prix absent ou ambigu':'';
-    return [{url,title,snippet,price_cents:cents,condition,exact,eligible:!hardReason,blocked:isNew||!listing||accessory||lot,reason:hardReason||(!condition?'État non précisé — repère indicatif':''),source:new URL(url).hostname.replace(/^www\./,'')}];
+    const buyback=/(?:^|\.)momox\.fr$/.test(new URL(url).hostname),offer_kind=buyback?'buyback':'listing';
+    const cents=sourcePrice(text),hardReason=accessory?'Accessoire seul':lot?'Lot de plusieurs produits':!related?'Référence différente ou non confirmée':!listing?'Page de résultats':buyback?'Offre de rachat, hors comparaison de vente':isNew?'Produit neuf':!used?'Occasion non précisée':!cents?'Prix absent ou ambigu':'';
+    return [{url,title,snippet,price_cents:cents,condition,exact,related,offer_kind,eligible:!hardReason,blocked:buyback||isNew||!listing||accessory||lot,reason:hardReason||(!condition?'État non précisé — repère indicatif':''),source:new URL(url).hostname.replace(/^www\./,'')}];
   }).slice(0,12);
 }
 export function selectedComparables(rows,condition){
@@ -83,7 +84,7 @@ export function resourcerieEstimate(comparables,{condition,discount=20,confirmed
     return accepted && !row.blocked && price>0?[{...row,price_cents:price}]:[];
   });
   if(rows.length<(provisional?2:3))return null;
-  const prices=rows.map(row=>row.price_cents).sort((a,b)=>a-b),pick=q=>prices[Math.floor((prices.length-1)*q)],rate=Math.max(0,Math.min(50,Number.isFinite(discount)?discount:20));
+  const prices=rows.map(row=>row.price_cents).sort((a,b)=>a-b),pick=q=>prices[Math.floor((prices.length-1)*q)],rate=Math.max(0,Math.min(90,Number.isFinite(discount)?discount:20));
   const reference=pick(.25),cents=Math.max(1,Math.round(reference*(100-rate)/100));
   const unspecified=rows.filter(row=>!row.condition).length,warnings=[rows.length<3?'Seulement deux annonces exploitables.':'',unspecified?`État non précisé pour ${unspecified} annonce${unspecified>1?'s':''}.`:'',!condition?'État du produit à confirmer.':''].filter(Boolean);
   return {cents,reference,provisional:!confirmed||Boolean(warnings.length),warnings,discount:rate,low:prices[0],high:prices.at(-1),median:pick(.5),count:rows.length,rows,confidence:warnings.length?'Repère limité, à confirmer':rows.every(row=>row.eligible&&row.exact&&row.condition===condition)?'Comparaison ciblée':'Repères sur des produits similaires'};

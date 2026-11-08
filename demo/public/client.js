@@ -12,7 +12,7 @@ export function selectWorkspace(id) {
   sessionStorage.removeItem('seconde-vie-station');
 }
 export function leaveStation() {sessionStorage.removeItem('seconde-vie-station');}
-export function isModuleEnabled(config,key) {return demoMode || config?.modules?.includes(key);}
+export function isModuleEnabled(config,key) {return !Array.isArray(config?.modules) || config.modules.includes(key);}
 function cache(route,value) {
   if(route==='/snapshot') {
     for(const type of ['stock','team','sites','transfers','contacts','shifts']) for(const row of value[type] || []) versions.set(type+'/'+row.id,row._version);

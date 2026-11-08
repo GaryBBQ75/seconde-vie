@@ -1,0 +1,18 @@
+import {test} from 'node:test';import assert from 'node:assert/strict';import worker,{cleanCatalogue} from '../worker/index.mjs';
+const workspace='ressourcerie-test',key='cle-fictive-de-test',images=new Map();
+function binding(){const data=new Map();return {CATALOGUE_WRITE_KEY:key,BUCKET:{async put(name,value){data.set(name,typeof value==='string'?value:new Uint8Array(value));},async get(name){const value=data.get(name);return value===undefined?null:{body:value,async text(){return typeof value==='string'?value:new TextDecoder().decode(value);}};}},ASSETS:{async fetch(request){return new Response(new URL(request.url).pathname);}}};}
+const entry={id:'article-test-1',title:'Table',category:'Mobilier',price_cents:1000,quantity:1,site_name:'Boutique',note:'SECRET-DONATEUR',history:[{actor:'Équipe'}],photos:[]};
+const content=(revision=1,items=[entry])=>({revision,name:'Atelier test',currency:'EUR',items});
+function request(path,body,{auth=true,method='PUT'}={}){return new Request('https://catalogue.example.test'+path,{method,headers:{...(auth?{Authorization:'Bearer '+key}:{}),'Content-Type':'application/json'},...(body!==undefined?{body:typeof body==='string'?body:JSON.stringify(body)}:{})});}
+test('catalogue : contenu public limité, champs internes et contacts non choisis absents',()=>{const clean=cleanCatalogue(content(),workspace);assert.equal(clean.items.length,1);assert(!JSON.stringify(clean).includes('SECRET-DONATEUR'));assert(!Object.hasOwn(clean.items[0],'history'));assert.throws(()=>cleanCatalogue(content(1,[{...entry,price_cents:null}]),workspace));assert.throws(()=>cleanCatalogue(content(1,[entry,entry]),workspace));});
+test('catalogue : écriture authentifiée, lecture anonyme et retrait immédiat des photos publiées',async()=>{
+ const env=binding();let response=await worker.fetch(request('/api/update/'+workspace,content(),{auth:false}),env);assert.equal(response.status,401);
+ const bytes=new Uint8Array([255,216,255,217]),hash=[...new Uint8Array(await crypto.subtle.digest('SHA-256',bytes))].map(v=>v.toString(16).padStart(2,'0')).join('');
+ response=await worker.fetch(new Request('https://catalogue.example.test/api/update/'+workspace+'/media/'+hash,{method:'PUT',headers:{Authorization:'Bearer '+key},body:bytes}),env);assert.equal(response.status,200);
+ const path='/media/'+workspace+'/'+hash+'.jpg';assert.equal((await worker.fetch(request(path,undefined,{method:'GET',auth:false}),env)).status,404);
+ await worker.fetch(request('/api/update/'+workspace,content(2,[{...entry,photos:[hash]}])),env);assert.equal((await worker.fetch(request(path,undefined,{method:'GET',auth:false}),env)).status,200);
+ response=await worker.fetch(request('/api/catalogue/'+workspace,undefined,{method:'GET',auth:false}),env);const result=await response.json();assert.equal(result.items[0].photos[0],path);assert(!JSON.stringify(result).includes('SECRET-DONATEUR'));
+ assert.equal((await worker.fetch(request('/api/update/'+workspace,content(1)),env)).status,409);
+ await worker.fetch(request('/api/update/'+workspace,content(3,[])),env);assert.equal((await worker.fetch(request(path,undefined,{method:'GET',auth:false}),env)).status,404);
+});
+test('catalogue : les structures ne mélangent pas leurs produits et le site de présentation reste accessible',async()=>{const env=binding();await worker.fetch(request('/api/update/'+workspace,content()),env);assert.equal((await worker.fetch(request('/api/catalogue/autre-espace',undefined,{method:'GET',auth:false}),env)).status,404);const response=await worker.fetch(request('/',undefined,{method:'GET',auth:false}),env);assert.equal(await response.text(),'/decouvrir.html');});

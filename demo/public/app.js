@@ -1,3 +1,6 @@
+import {compressProductPhoto} from './product-photo.js';
+import {mountCommerce,catalogueSettings} from './commerce-page.js';
+import {bindPhotoOrder} from './photo-order.js';
 import {mountIntakePricing} from './intake-pricing.js';
 import {shortcutKeys as keyboardKeys,shortcutLabel,keyboardAction} from './keyboard.js';
 import {functionalityOptions} from './condition.js';
@@ -28,8 +31,8 @@ const root = document.querySelector('#app');
 const dialog = document.querySelector('#dialog');
 const toastArea = document.querySelector('#toast');
 const moduleForPage=optionalModuleForPage;
-const canOpen=(member,key)=>baseCanOpen(member,key) && (demoMode || !moduleForPage[key] || isModuleEnabled(config,moduleForPage[key]));
-const pageNames = { documents:'Devis et factures', adhesions:'Adhésions', imports:'Importer du stock', indisponible:'Accès aux postes', contacts:'Contacts', reglages:'Réglages', accueil: 'Réception', scanner: 'Scanner', caisse: 'Caisse', stock: 'Stock', controle: 'À vérifier', transferts: 'Transferts', planning: 'Planning', tournees: 'Tournées', rapports: 'Rapports', registre: 'Préparer le registre', vitrine: 'Vitrine', equipe: 'Équipe', sites: 'Sites et zones' };
+const canOpen=(member,key)=>baseCanOpen(member,key) && (!moduleForPage[key] || isModuleEnabled(config,moduleForPage[key]));
+const pageNames = { documents:'Devis et factures', adhesions:'Adhésions', imports:'Importer du stock', indisponible:'Accès aux postes', contacts:'Contacts', reglages:'Réglages', accueil: 'Réception', scanner: 'Scanner', caisse: 'Caisse', stock: 'Stock', controle: 'À vérifier', transferts: 'Transferts', planning: 'Planning', tournees: 'Tournées', rapports: 'Rapports', registre: 'Préparer le registre', boutiques:'Vente en ligne', vitrine: 'Catalogue', equipe: 'Équipe', sites: 'Sites et zones' };
 const statusNames = { tri: 'À trier', controle: 'À vérifier', pret: 'Prêt', transit: 'En transit', sorti: 'Sorti' };
 const exitNames = { vente: 'Vendu', don: 'Donné', recyclage: 'Recyclage', decheterie:'Déchèterie', reparti: 'Lot réparti' };
 const esc = (value) => String(value ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' })[c]);
@@ -204,6 +207,7 @@ async function refresh() {
     if(siteFilter && !getSite(siteFilter))siteFilter='';
     return;
   }
+  config=await api('/config');origins=config.origins||origins;euro=new Intl.NumberFormat(config.locale||'fr-FR',{style:'currency',currency:config.currency||'EUR'});
   [sites, stock, transfers, shifts, team] = await Promise.all([
     api('/sites'), allowed('reception','tri','atelier','stock','vente','rapports') ? api('/stock') : [],
     canOpen(me,'transferts') ? api('/transfers') : [], api('/shifts'), admin() ? api('/team') : [],
@@ -245,7 +249,7 @@ function render(draft) {
   persistEntry=null;
   chooseCashier = null;
   const fieldNav = nav([['accueil','receive'],['scanner','scan'],['caisse','caisse'],['stock','box'],['controle','wrench'],['transferts','truck']]);
-  const officeNav = nav([['planning','calendar'],['tournees','truck'],['rapports','dashboard'],['documents','book'],['adhesions','users'],['registre','book'],['vitrine','image'],['contacts','users'],['imports','upload'],['equipe','users'],['sites','pin'],['reglages','settings']]);
+  const officeNav = nav([['planning','calendar'],['tournees','truck'],['rapports','dashboard'],['documents','book'],['adhesions','users'],['registre','book'],['vitrine','image'],['boutiques','truck'],['contacts','users'],['imports','upload'],['equipe','users'],['sites','pin'],['reglages','settings']]);
   const quickNav = nav([['accueil','receive'],['scanner','scan'],['caisse','caisse'],['stock','box']])
     || nav([['rapports','dashboard'],['tournees','truck'],['registre','book'],['planning','calendar']]);
   root.innerHTML = `<div class="shell${compactNav ? ' nav-compact' : ''}"><aside class="sidebar" id="sidebar" aria-label="Navigation principale">
@@ -299,16 +303,14 @@ function render(draft) {
   if (page === 'transferts') transferPage(main);
   if (page === 'planning') planningPage(main);
   if (page === 'vitrine') storefrontPage(main);
+  if(page==='boutiques')mountCommerce(main,{api,esc,euro,header,button,showDialog,formSubmit,formEnd,field,input,notice,config,me,stock,changed,demo:demoMode}).catch(report);
   if (page === 'tournees') toursPage(main);
   if (page === 'rapports' || page === 'registre') activityPage(main, page === 'registre');
   if (page === 'equipe') teamPage(main);
   if (page === 'sites') sitePage(main);
   if(['contacts','reglages'].includes(page)) {
-    const pages=corePages({api,esc,field,input,button,formEnd,formSubmit,showDialog,header,changed,config,me,option,date,notice});
-    if(demoMode && page==='reglages') {
-      main.innerHTML=header('Réglages de la démonstration','Tous les outils sont visibles pour explorer les postes de la ressourcerie.')
-        +'<section class="surface stack"><p>Dans votre espace partagé, vous pourrez choisir les outils actifs, alléger les champs de réception et retrouver vos sauvegardes.</p><a class="btn primary" href="/">Ouvrir mon espace partagé</a></section>';
-    } else Promise.resolve(page==='contacts' ? pages.contactsPage(main) : pages.settingsPage(main)).catch(report);
+    const pages=corePages({api,esc,field,input,button,formEnd,formSubmit,showDialog,header,changed,config,me,option,date,notice,demo:demoMode});
+    Promise.resolve(page==='contacts' ? pages.contactsPage(main) : pages.settingsPage(main)).catch(report);
   }
 }
 
@@ -635,7 +637,7 @@ function cashPage(main) {
       <p class="help">Le prix sera aussi enregistré sur la fiche de stock.</p>
       ${formEnd('Enregistrer et ajouter au panier')}</form>`);
     const form = dialog.querySelector('#cash-price-form');
-    form.elements.price.focus();
+    form.elements.price.dispatchEvent(new Event('input',{bubbles:true}));form.elements.price.focus();
     formSubmit('cash-price-form', async data => {
       const updated = await api('/stock/'+row.id+'/action',{method:'POST',body:{action:'cash-price',
         site_id:site.id,price_cents:Math.round(Number(data.get('price')) * 100)}});
@@ -836,10 +838,11 @@ function openSiteStock(site, state = '') {
   go(state === 'controle' ? 'controle' : 'stock', false, state);
 }
 
+function stockVisual(row){const src=row.cover_photo||itemPhotos(row)[0];return src?`<span class="stock-photo">${categoryTile(row.category)}<img src="${esc(src)}" alt="" data-stock-cover loading="lazy" decoding="async"></span>`:categoryTile(row.category);}
 function recentEntries(rows) {
   if (!rows.length) return '<div class="surface empty">Aucune entrée sur ce site.</div>';
   return `<ul class="recent-list">${rows.map(row => `<li><button type="button" data-stock="${esc(row.id)}">
-    ${categoryTile(row.category)}<span class="recent-title"><strong>${esc(row.title)}</strong><small>${esc([measure(row), row.zone_name].filter(Boolean).join(' · '))}</small></span>
+    ${stockVisual(row)}<span class="recent-title"><strong>${esc(row.title)}</strong><small>${esc([measure(row), row.zone_name].filter(Boolean).join(' · '))}</small></span>
     ${status(row)}${icon('chevron', 14)}
   </button></li>`).join('')}</ul>`;
 }
@@ -850,11 +853,12 @@ function header(title, sub = '', actions = '') {
 function table(rows) {
   if (!rows.length) return '<div class="surface empty">Aucun objet ou lot ici pour le moment.</div>';
   return `<div class="surface table-scroll"><table><thead><tr><th>Objet ou lot</th><th>Site / zone</th><th>État</th><th>Quantité</th><th>Prix</th></tr></thead><tbody>${rows.map(row => {
-    return `<tr><td><div class="item-title">${categoryTile(row.category)}<div><button type="button" data-stock="${row.id}">${esc(row.title)}</button><small>${esc(row.code)} · ${esc(row.category)}</small><small class="stock-compact-data">${esc(measure(row))}${row.price_cents == null ? '' : ' · ' + euro.format(row.price_cents / 100)}</small></div></div></td>
+    return `<tr><td><div class="item-title">${stockVisual(row)}<div><button type="button" data-stock="${row.id}">${esc(row.title)}</button><small>${esc(row.code)} · ${esc(row.category)}</small><small class="stock-compact-data">${esc(measure(row))}${row.price_cents == null ? '' : ' · ' + euro.format(row.price_cents / 100)}</small></div></div></td>
       <td>${row.state === 'transit' ? 'En déplacement' : esc(row.site_name)}${row.zone_name && row.state !== 'transit' ? `<span class="minor">${esc(row.zone_name)}</span>` : ''}</td><td>${status(row)}</td><td>${esc(measure(row))}</td><td>${row.price_cents == null ? '—' : euro.format(row.price_cents/100)}</td></tr>`;
   }).join('')}</tbody></table></div>`;
 }
 function bindStock(container) {
+  container.querySelectorAll('[data-stock-cover]').forEach(image=>image.addEventListener('error',()=>image.remove(),{once:true}));
   container.querySelectorAll('[data-stock]').forEach(el => el.addEventListener('click', () => detail(el.dataset.stock).catch(report)));
 }
 function inventory(main) {
@@ -987,7 +991,7 @@ function receive({ parent, barcode = '', title = '', category = '', catalog, ref
     toggle('note',fields.note===true);
   }
   if (market) market.showInIntake(form.querySelector('[data-intake-market]'));
-  mountIntakePricing(form,{esc,euro,currency:config.currency||'EUR',referenceConfirmed});
+  const readPricing=mountIntakePricing(form,{esc,euro,currency:config.currency||'EUR',referenceConfirmed,getStock:()=>stock,siteId:site.id});
   const photos = bindPhotoEditor(form, resume?.photos?.length ? resume.photos : initialPhotos?.length ? initialPhotos : photo ? [photo] : []);
   if (inline) {
     const extras = form.querySelector('.entry-extras');
@@ -1115,7 +1119,7 @@ function receive({ parent, barcode = '', title = '', category = '', catalog, ref
     const row = await api('/stock', { method:'POST', body:{
       kind:data.get('kind'), category:data.get('category'), title:data.get('title'), site_id:data.get('site_id') || site.id,
       zone_id:data.get('zone_id'), quantity:data.get('quantity') ? Number(data.get('quantity')) : null,
-      price_cents:data.get('price') ? Math.round(Number(data.get('price')) * 100) : null,
+      pricing_evidence:readPricing?.(),price_cents:data.get('price') ? Math.round(Number(data.get('price')) * 100) : null,
       grams:weight ? Math.round(Number(weight) * 1000) : null,
       visual_condition, functionality:data.get('functionality') || functionality,reference_confirmed:true, condition:data.get('condition'), note:data.get('note'), barcode:data.get('barcode'), origin:data.get('origin'), contact_id:data.get('contact_id'), parent_id:parent?.id, catalog,
       reference:formReference(data, data.get('category')), description:data.get('description'), ...photoData,
@@ -1134,7 +1138,7 @@ function receive({ parent, barcode = '', title = '', category = '', catalog, ref
 }
 
 function priceMessage(estimate) {
-  if (!estimate) return '<p class="help">Pas de repère interne suffisant sur ce site.</p>';
+  if (!estimate) return '';
   if (estimate.rate) {
     return `<p><strong>Prix indicatif ${euro.format(estimate.cents / 100)}</strong></p>
       <p class="help">Barème de démonstration · ${estimate.rate} % du prix éditeur neuf.</p>`;
@@ -1150,9 +1154,9 @@ function bindPriceSuggestion(form, item, showMissing = false) {
   function update() {
     const value = item();
     estimate = priceEstimate(stock, value);
-    target.hidden = !estimate && (!showMissing || value.kind !== 'item');
-    const markup = target.hidden ? '' : priceMessage(estimate) + (estimate
-      ? '<button type="button" class="btn" data-use-price>Utiliser ce prix</button>' : '');
+    target.hidden = !estimate;
+    const markup = target.hidden ? '' : '<details><summary>Repère de votre ressourcerie · historique local</summary>'+priceMessage(estimate) + (estimate
+      ? '<button type="button" class="btn" data-use-price>Utiliser ce prix local</button>' : '')+'</details>';
     if (target.innerHTML !== markup) target.innerHTML = markup;
   }
   const affectsPrice = event => ['site_id', 'kind', 'category', 'barcode', 'title', 'ref_brand', 'ref_model'].includes(event.target.name);
@@ -1166,27 +1170,7 @@ function bindPriceSuggestion(form, item, showMissing = false) {
   update();
 }
 
-async function encodePhoto(file) {
-  if(file.size>20*1024*1024)throw new Error('Choisissez une photo de moins de 20 Mo.');
-  const url = URL.createObjectURL(file);
-  const image = new Image();
-  try {
-    await new Promise((resolve, reject) => {
-      image.onload = resolve;
-      image.onerror = () => reject(new Error('Cette photo ne peut pas être lue. Choisissez un fichier JPEG ou PNG.'));
-      image.src = url;
-    });
-    const canvas=document.createElement('canvas');
-    let side=1250;
-    for(let attempt=0;attempt<6;attempt++) {
-      const factor=Math.min(1,side/Math.max(image.naturalWidth,image.naturalHeight));
-      canvas.width=Math.max(1,Math.round(image.naturalWidth*factor));canvas.height=Math.max(1,Math.round(image.naturalHeight*factor));
-      const ctx=canvas.getContext('2d');ctx.fillStyle='#fff';ctx.fillRect(0,0,canvas.width,canvas.height);ctx.drawImage(image,0,0,canvas.width,canvas.height);
-      const encoded=canvas.toDataURL('image/jpeg',.74);if(encoded.length<=390000)return encoded;side*=.8;
-    }
-    throw new Error('Cette photo reste trop volumineuse. Recadrez l’objet ou choisissez une autre image.');
-  } finally { URL.revokeObjectURL(url); }
-}
+const encodePhoto=compressProductPhoto;
 
 function catalogGallery(info, selected, picker = false) {
   const images = catalogImages(info).filter(image => picker || selected == null || selected.includes(image.url));
@@ -1254,7 +1238,6 @@ function bindPhotoEditor(form, existing = []) {
   const status = editor.querySelector('[data-photo-status]');
   const photos = [...existing];
   let pending = Promise.resolve();
-  let dragging = null;
   const action = (index, key, label, symbol, disabled = false) =>
     `<button type="button" class="icon-button" data-photo-action="${key}" aria-label="${label} la photo ${index + 1}" title="${label} la photo ${index + 1}" ${disabled ? 'disabled' : ''}>${icon(symbol, 15)}</button>`;
   function render() {
@@ -1262,7 +1245,7 @@ function bindPhotoEditor(form, existing = []) {
     hint.textContent = photos.length ? `${photos.length} / ${maxItemPhotos} · La première photo est la principale` : `Facultatives · Jusqu’à ${maxItemPhotos} photos`;
     addButton.disabled = photos.length >= maxItemPhotos;
     list.innerHTML = photos.map((src, index) => `<li class="photo-tile photo-preview" data-photo-index="${index}" draggable="true">
-      <img src="${esc(src)}" alt="Photo ${index + 1}${index === 0 ? ', principale' : ''}" draggable="false">
+      <img src="${esc(src)}" alt="Photo ${index + 1}${index === 0 ? ', principale' : ''}" draggable="false"><button type="button" data-photo-drag class="photo-drag-handle" aria-label="Déplacer la photo ${index+1}">⠿</button><span class="photo-main-badge">${index===0?'Principale':index+1}</span>
       <div class="photo-preview-actions">
         ${action(index,'earlier','Avancer','left',index === 0)}${action(index,'later','Reculer','arrow',index === photos.length - 1)}${action(index,'remove','Retirer','close')}
       </div></li>`).join('');
@@ -1273,7 +1256,7 @@ function bindPhotoEditor(form, existing = []) {
     pending = pending.then(async () => {
       status.textContent = '';
       const limit = maxItemPhotos - photos.length;
-      if (files.length > limit) status.textContent = 'Seules les trois premières photos sont gardées.';
+      if (files.length > limit) status.textContent = 'Seules les six premières photos sont gardées.';
       for (const file of files.slice(0,limit)) {
         try { photos.push(await encodePhoto(file)); }
         catch (error) { status.textContent = error.message; }
@@ -1309,35 +1292,10 @@ function bindPhotoEditor(form, existing = []) {
     }
   });
   const hasFiles = event => Array.from(event.dataTransfer.types || []).includes('Files');
-  list.addEventListener('dragstart', event => {
-    const tile = event.target.closest('[data-photo-index]');
-    if (!tile) return;
-    if (form.dataset.saving) { event.preventDefault(); return; }
-    dragging = Number(tile.dataset.photoIndex);
-    event.dataTransfer.setData('text/plain', String(dragging));
-    event.dataTransfer.effectAllowed = 'move';
-  });
-  list.addEventListener('dragend', () => { dragging = null; });
-  editor.addEventListener('dragover', event => {
-    if (dragging === null && !hasFiles(event)) return;
-    event.preventDefault();
-    event.dataTransfer.dropEffect = dragging === null ? 'copy' : 'move';
-    editor.classList.toggle('photo-over', dragging === null);
-  });
-  editor.addEventListener('dragleave', event => {
-    if (!editor.contains(event.relatedTarget)) editor.classList.remove('photo-over');
-  });
-  editor.addEventListener('drop', event => {
-    if (dragging === null && !hasFiles(event)) return;
-    event.preventDefault();
-    editor.classList.remove('photo-over');
-    if (dragging === null) addFiles(Array.from(event.dataTransfer.files));
-    else {
-      const tile = event.target.closest('[data-photo-index]');
-      if (tile) movePhoto(dragging, Number(tile.dataset.photoIndex));
-      dragging = null;
-    }
-  });
+  bindPhotoOrder(list,{photos,busy:()=>Boolean(form.dataset.saving),changed:render,announce:text=>{status.textContent=text;}});
+  editor.addEventListener('dragover',event=>{if(!hasFiles(event))return;event.preventDefault();event.dataTransfer.dropEffect='copy';editor.classList.add('photo-over');});
+  editor.addEventListener('dragleave',event=>{if(!editor.contains(event.relatedTarget))editor.classList.remove('photo-over');});
+  editor.addEventListener('drop',event=>{if(!hasFiles(event))return;event.preventDefault();editor.classList.remove('photo-over');addFiles(Array.from(event.dataTransfer.files));});
   render();
   return async () => { await pending; return [...photos]; };
 }
@@ -1602,7 +1560,7 @@ function scanPage(main,{intake=false,draft,resume}={}) {
     const site=workingSite();
     if(!site)return notice('Choisissez un site de réception.');
     if(intake)mountProductAssist(document.getElementById('scan-product-assist'),{keyHint,onCameraClose:()=>{stopObjectCamera=null;},onCameraOpen:stop=>{endScan();stopObjectCamera=stop;},site,categories:siteCategories(site),esc,euro,referenceInputs,encodePhoto,notice,
-      origins,canCreate:allowed('reception','tri'),currency:config.currency || 'EUR',allowPrice:true,onSave:async draft=>{const row=await api('/stock',{method:'POST',body:{kind:'item',category:draft.category,title:draft.title,site_id:site.id,zone_id:draft.zoneId,origin:draft.origin,barcode:draft.barcode,reference:draft.reference,reference_confirmed:draft.referenceConfirmed,reference_status:draft.referenceStatus,description:draft.description,condition:draft.condition,visual_condition:draft.visual_condition,functionality:draft.functionality,price_cents:draft.priceCents??null,note:draft.note,photos:draft.photos||[]}});await changed('Entrée enregistrée · '+row.code+' · Prêt pour la photo suivante.');},onCreate:draft=>openIntake(draft),onCode:(code,draft)=>{showScanMode('code');renderResult(code,draft);}});
+      origins,getStock:()=>stock,canCreate:allowed('reception','tri'),currency:config.currency || 'EUR',allowPrice:true,onSave:async draft=>{const row=await api('/stock',{method:'POST',body:{kind:'item',category:draft.category,title:draft.title,site_id:site.id,zone_id:draft.zoneId,origin:draft.origin,barcode:draft.barcode,reference:draft.reference,reference_confirmed:draft.referenceConfirmed,reference_status:draft.referenceStatus,description:draft.description,condition:draft.condition,visual_condition:draft.visual_condition,functionality:draft.functionality,price_cents:draft.priceCents??null,note:draft.note,pricing_evidence:draft.pricing_evidence,photos:draft.photos||[]}});await changed('Entrée enregistrée · '+row.code+' · Prêt pour la photo suivante.');},onCreate:draft=>openIntake(draft),onCode:(code,draft)=>{showScanMode('code');renderResult(code,draft);}});
   async function cameraOptions(track, choice, stillActive) {
     const settings = track.getSettings?.() || {};
     const devices = (await navigator.mediaDevices.enumerateDevices?.().catch(() => []) || [])
@@ -1802,7 +1760,7 @@ async function detail(id) {
       ${button('Imprimer l’étiquette','printer','print-label')}
       ${button('Étiquette QR','printer','print-label-qr')}
       ${active && allowed('stock') && isModuleEnabled(config,'vitrine') && (r.web_visible || (r.state === 'pret' && r.price_cents != null))
-        ? button(r.web_visible ? 'Retirer de la vitrine' : 'Afficher en vitrine','image','detail-storefront') : ''}
+        ? button(r.web_visible ? 'Retirer du catalogue' : 'Afficher au catalogue','image','detail-storefront') : ''}
       ${active && control ? button('Corriger les informations','info','detail-edit') : ''}
       ${active && control ? button('Modifier le descriptif','info','detail-reference') : ''}
       ${active && control ? button(photos.length || r.catalog_images?.length ? 'Gérer les photos' : 'Ajouter des photos','camera','detail-photo') : ''}
@@ -2080,10 +2038,15 @@ function memberForm(member) {
   });
 }
 function storefrontPage(main) {
-  main.innerHTML = header('Vitrine', me.org_name)
-    + `<p class="help">Aperçu privé. Pour afficher un article prêt et tarifé, ouvrez sa fiche de stock et choisissez « Afficher en vitrine ».</p>
-      <div class="toolbar storefront-toolbar">${field('Chercher dans la vitrine',input('query','id="storefront-search" type="search" autocomplete="off"'))}
+  main.innerHTML = header('Catalogue',me.org_name,admin()?button('Configurer mon site','settings','catalogue-configure')+button('Publier les photos','upload','catalogue-publish','primary'):'')
+    + `<p class="help">Sélectionnez vos objets prêts et tarifés depuis leur fiche de stock. Les objets sortis quittent le catalogue lors de la prochaine mise à jour.</p>
+      <div data-catalogue-status role="status"></div><div class="toolbar storefront-toolbar">${field('Chercher dans la vitrine',input('query','id="storefront-search" type="search" autocomplete="off"'))}
       <div id="storefront-categories"></div></div><div id="storefront-results" aria-live="polite"><p>Chargement…</p></div>`;
+  main.querySelector('#catalogue-configure')?.addEventListener('click',()=>catalogueSettings({api,esc,showDialog,formSubmit,formEnd,field,input,config,me,changed,demo:demoMode}));
+  const catalogueStatus=main.querySelector('[data-catalogue-status]');
+  const drawStatus=data=>{if(!catalogueStatus.isConnected)return;catalogueStatus.innerHTML=demoMode?'<p class="notice">Aperçu de démonstration : les exemples ne sont pas publiés.</p>':data.error?`<p class="form-error">Mise à jour à reprendre : ${esc(data.error)}</p>`:config.catalogue?.enabled&&data.url?`<p class="notice"><a href="${esc(data.url)}" target="_blank" rel="noopener">Ouvrir le site de ma ressourcerie ↗</a> · ${data.count} objet(s) · ${data.last_sync?esc(new Date(data.last_sync).toLocaleString('fr-FR')):''}</p>`:'<p class="help">Votre catalogue internet est désactivé. Configurez-le pour partager vos produits.</p>';};
+  api('/catalogue-status').then(drawStatus).catch(error=>{catalogueStatus.textContent=error.message;});
+  main.querySelector('#catalogue-publish')?.addEventListener('click',async event=>{event.target.disabled=true;main.dataset.planningBusy='1';try{let data,attempt=0;do{catalogueStatus.textContent='Publication des photos et des produits…';data=await api('/catalogue-publish',{method:'POST',body:{}});attempt++;}while(data.pending>0&&attempt<50&&main.isConnected);drawStatus(data);if(data.pending)notice(data.pending+' fiche(s) restent à publier. Relancez la publication.');else notice('Catalogue mis à jour.');}catch(error){catalogueStatus.textContent=error.message;}finally{main.dataset.planningBusy='0';event.target.disabled=false;}});
   const result = main.querySelector('#storefront-results');
   const query = main.querySelector('#storefront-search');
   api('/storefront').then(rows => {

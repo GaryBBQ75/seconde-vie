@@ -105,3 +105,9 @@ test('les produits neufs au féminin et les appareils en panne ne deviennent pas
  assert.equal(rows[0].blocked,true);assert.equal(rows[1].condition,'parts');assert.equal(rows[2].eligible,true);
  assert.equal(resourcerieEstimate(rows,{condition:'good',provisional:true}),null);
 });
+
+test('prix : une offre de rachat Momox reste distincte des annonces de revente',()=>{
+ const identity={title:'Livre test roman',type:'Livre',category:'Livres',barcode:'9782070360024'};
+ const rows=normalizeComparables({results:[{title:'Livre test 9782070360024 occasion bon état',url:'https://www.momox.fr/offer/9782070360024',snippet:'Prix de rachat 4,00 €'},{title:'Livre test 9782070360024 occasion bon état',url:'https://www.momox-shop.fr/livre/9782070360024',snippet:'Prix 6,00 €'}]},identity);
+ assert.equal(rows[0].offer_kind,'buyback');assert.equal(rows[0].blocked,true);assert.equal(rows[1].offer_kind,'listing');assert.equal(rows[1].blocked,false);
+});

@@ -178,3 +178,53 @@ test('le Worker se charge sans génération aléatoire au niveau global',()=>{
   execFileSync(process.execPath,['--input-type=module','-e',
     `Object.defineProperty(globalThis,'crypto',{value:{getRandomValues(){throw new Error('Global randomness forbidden')},randomUUID(){throw new Error('Global randomness forbidden')}}});await import(${JSON.stringify(entry)});`],{stdio:'pipe'});
 });
+
+test('catalogue et commerce : réglages, rôles et secrets séparés des sauvegardes',async()=>{
+ const {owner,site}=await setup();
+ await owner.call('/settings',{method:'PATCH',body:{name:'Atelier test',modules:['vitrine','commerce'],catalogue:{enabled:true,contact_email:'contact@example.test',intro:'Nos trouvailles'}}});
+ const config=await owner.call('/config');assert.equal(config.catalogue.enabled,true);
+ await owner.call('/settings',{method:'PATCH',body:{name:'Atelier test',catalogue:{contact_email:'invalide'}},status:400});
+ const connections=await owner.call('/commerce');assert.equal(connections.providers.length,2);assert.equal(connections.providers[0].connected,false);
+ await env.DB.prepare("INSERT INTO sv_records(workspace_id,type,id,data) VALUES(?,'commerce_private','shopify',?)").bind(owner.workspace,JSON.stringify({credentials:{iv:'cipher',data:'cipher-only'}})).run();
+ const row=await owner.call('/stock',{method:'POST',body:object(site)});assert(row.id);
+ assert(await env.DB.prepare("SELECT data FROM sv_records WHERE workspace_id=? AND type='commerce_private'").bind(owner.workspace).first());
+ const backup=await owner.call('/backup');assert(!JSON.stringify(backup).includes('cipher-only'));assert(!Object.hasOwn(backup.state,'commerce_private'));
+ await owner.call('/settings',{method:'PATCH',body:{name:'Atelier test',modules:[]}});await owner.call('/commerce',{status:403});assert.equal((await owner.call('/config')).catalogue.intro,'Nos trouvailles');
+});
+test('six photos sauvegardées, couverture réordonnée et septième refusée',async()=>{
+ const {owner,site}=await setup();const photo='data:image/jpeg;base64,'+btoa(String.fromCharCode(255,216,255,217));
+ const saved=await owner.call('/stock',{method:'POST',body:object(site,{photos:Array(6).fill(photo)})});const row=await owner.call('/stock/'+saved.id);assert.equal(row.photos.length,6);
+ const photos=[...row.photos].reverse();await owner.call('/stock/'+row.id+'/action',{method:'POST',body:{action:'photo',photos}});
+ const list=await owner.call('/stock');assert.equal(list[0].cover_photo,photos[0]);
+ await owner.call('/stock',{method:'POST',body:object(site,{photos:Array(7).fill(photo)}),status:400});
+});
+test('WooCommerce : connexion testée, secrets non retournés, envoi en brouillon et conflit distant préservé',async()=>{
+ const {owner,site}=await setup();env.COMMERCE_ENCRYPTION_KEY='cd'.repeat(32);
+ await owner.call('/settings',{method:'PATCH',body:{name:'Atelier test',modules:['commerce','vitrine']}});
+ const original=globalThis.fetch;let remote=null,posts=0;
+ globalThis.fetch=async(url,options={})=>{if(new URL(url).hostname==='cloudflare-dns.com')return Response.json({Answer:[{type:1,data:'93.184.216.34'}]});assert.equal(options.redirect,'error');assert.equal(new URL(url).origin,'https://boutique.fr');assert(!String(url).includes('test-consumer-secret'));
+  const path=new URL(url).pathname;if(path.includes('woocommerce_currency'))return Response.json({value:'EUR'});if(options.method==='POST'){posts++;remote={id:123,...JSON.parse(options.body)};assert.equal(remote.status,'draft');return Response.json(remote);}if(options.method==='PUT'){remote={...remote,...JSON.parse(options.body)};return Response.json(remote);}if(path.endsWith('/products/123'))return Response.json(remote);return Response.json(remote?[remote]:[]);
+ };
+ try{
+  const connection=await owner.call('/commerce/woocommerce',{method:'PUT',body:{host:'https://boutique.fr',key:'test-consumer-key',secret:'test-consumer-secret'}});assert.equal(connection.connected,true);assert(!JSON.stringify(connection).includes('test-consumer'));
+  const created=await owner.call('/stock',{method:'POST',body:object(site,{price_cents:600})});await owner.call('/stock/'+created.id+'/action',{method:'POST',body:{action:'ready',price_cents:600}});await owner.call('/stock/'+created.id);await owner.call('/stock/'+created.id+'/action',{method:'POST',body:{action:'storefront',visible:true}});
+  const first=await owner.call('/commerce/woocommerce/sync',{method:'POST',body:{ids:[created.id]}});assert.equal(first.results[0].ok,true);assert.equal(posts,1);assert.equal(remote.stock_quantity,1);
+  remote.stock_quantity=0;const retry=await owner.call('/commerce/woocommerce/sync',{method:'POST',body:{ids:[created.id]}});assert.equal(retry.results[0].ok,false);assert.match(retry.results[0].error,/stock a changé/);assert.equal(remote.stock_quantity,0);assert.equal(posts,1);
+  const backup=await owner.call('/backup');assert(!JSON.stringify(backup).includes('test-consumer-secret'));
+ }finally{globalThis.fetch=original;}
+});
+test('Shopify : jeton gardé au serveur, emplacement et devise vérifiés avant connexion',async()=>{
+ const {owner}=await setup();env.COMMERCE_ENCRYPTION_KEY='ef'.repeat(32);await owner.call('/settings',{method:'PATCH',body:{name:'Atelier test',modules:['commerce']}});
+ const original=globalThis.fetch;globalThis.fetch=async(url,options)=>{assert.equal(String(url),'https://boutique.myshopify.com/admin/api/2026-10/graphql.json');assert.equal(options.headers['X-Shopify-Access-Token'],'fictif-shopify-token');return Response.json({data:{shop:{name:'Boutique test',currencyCode:'EUR'},locations:{nodes:[{id:'gid://shopify/Location/1',name:'Magasin',isActive:true}]}}});};
+ try{const result=await owner.call('/commerce/shopify',{method:'PUT',body:{host:'https://boutique.myshopify.com',token:'fictif-shopify-token'}});assert.equal(result.location_id,'gid://shopify/Location/1');assert(!JSON.stringify(result).includes('fictif-shopify-token'));await owner.call('/commerce/shopify',{method:'PATCH',body:{enabled:false}});assert.equal((await owner.call('/commerce')).providers[0].enabled,false);}finally{globalThis.fetch=original;}
+});
+test('catalogue : photos publiées explicitement, retrait après désactivation et aucun champ privé transmis',async()=>{
+ const {owner,site}=await setup();env.CATALOGUE_URL='https://catalogue.example.org';env.CATALOGUE_WRITE_KEY='fictif-secret-catalogue';const original=globalThis.fetch;let snapshot,uploads=0;
+ globalThis.fetch=async(url,options)=>{assert.equal(new URL(url).origin,env.CATALOGUE_URL);assert.equal(options.headers.Authorization,'Bearer fictif-secret-catalogue');if(String(url).includes('/media/')){uploads++;return Response.json({ok:true});}snapshot=JSON.parse(options.body);return Response.json({count:snapshot.items.length});};
+ try{
+ await owner.call('/settings',{method:'PATCH',body:{name:'Atelier test',modules:['vitrine'],catalogue:{enabled:true}}});
+ const photo='data:image/jpeg;base64,'+btoa(String.fromCharCode(255,216,255,217));const row=await owner.call('/stock',{method:'POST',body:object(site,{photos:[photo],note:'NOTE-PRIVEE',price_cents:1000})});await owner.call('/stock/'+row.id+'/action',{method:'POST',body:{action:'ready',price_cents:1000}});await owner.call('/stock/'+row.id);await owner.call('/stock/'+row.id+'/action',{method:'POST',body:{action:'storefront',visible:true}});
+ assert.equal(uploads,0);const publication=await owner.call('/catalogue-publish',{method:'POST',body:{}});assert.equal(publication.count,1);assert.equal(uploads,1);assert.equal(snapshot.items[0].photos.length,1);assert(!JSON.stringify(snapshot).includes('NOTE-PRIVEE'));assert(!JSON.stringify(snapshot).includes('/api/core/photos/'));
+ await owner.call('/settings',{method:'PATCH',body:{name:'Atelier test',modules:[]}});assert.equal(snapshot.items.length,0);
+ }finally{globalThis.fetch=original;}
+});

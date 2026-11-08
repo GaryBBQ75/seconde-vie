@@ -1,3 +1,4 @@
+import {moduleOptions} from './module-config.js';
 import { modules } from './modules.js';
 
 export function setupWorkspace({root,api,onReady}) {
@@ -20,7 +21,7 @@ export function setupWorkspace({root,api,onReady}) {
   });
 }
 
-export function corePages({api,esc,field,input,button,formEnd,formSubmit,showDialog,header,changed,config,me,option,date,notice}) {
+export function corePages({api,esc,field,input,button,formEnd,formSubmit,showDialog,header,changed,config,me,option,date,notice,demo=false}) {
   function download(value,name) {
     const url=URL.createObjectURL(new Blob([JSON.stringify(value,null,2)],{type:'application/json'}));
     const link=document.createElement('a');link.href=url;link.download=name;link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
@@ -50,7 +51,7 @@ export function corePages({api,esc,field,input,button,formEnd,formSubmit,showDia
 
   function settingsPage(main) {
     main.innerHTML=header('Réglages de la ressourcerie','Adaptez la saisie et les outils aux besoins de votre équipe.')
-      +`<form id="core-settings" class="surface stack"><h2>Votre structure</h2>${field('Nom',input('name',`required maxlength="100" value="${esc(me.org_name)}"`))}
+      +`<p><a href="https://seconde-vie-catalogue.gary-legrill.chatgpt.site/" target="_blank" rel="noopener">Voir la page de présentation de Seconde Vie ↗</a></p><form id="core-settings" class="surface stack"><h2>Votre structure</h2>${field('Nom',input('name',`required maxlength="100" value="${esc(me.org_name)}"`))}
       ${field('Pays (code à deux lettres)',input('country',`required pattern="[A-Z]{2}" maxlength="2" value="${esc(config.country)}"`))}
       <div class="form-row">${field('Devise',`<select name="currency">${['EUR','GBP','USD','CAD','AUD','NZD','CHF','JPY'].map(value=>option(value,value,config.currency)).join('')}</select>`)}
       ${field('Formats régionaux',`<select name="locale">${['fr-FR','en-GB','en-US','de-DE','es-ES','it-IT'].map(value=>option(value,value,config.locale)).join('')}</select>`)}</div>
@@ -61,12 +62,15 @@ export function corePages({api,esc,field,input,button,formEnd,formSubmit,showDia
       ${Object.entries({price:'Prix de vente',photos:'Photos',reference:'Descriptif et caractéristiques',note:'Notes détaillées'}).map(([key,label])=>`<label class="check"><input type="checkbox" name="intake" value="${key}" ${config.intake?.[key]?'checked':''}> ${label}</label>`).join('')}</fieldset>
       <section class="notice"><h2>Toujours inclus</h2><p>Réception des dons et donateurs, tri, objets et lots, stock et emplacements, transferts, étiquettes, sorties, suivi des flux et des poids, équipe et droits.</p></section>
       <fieldset><legend>Outils en option pour votre ressourcerie</legend><p class="help">Activez ce qui vous sert. Les outils partagent les mêmes fiches. Désactiver un outil conserve ses données et son historique.</p>
-      <div class="module-grid">${Object.entries(modules).map(([key,value])=>`<div><label class="check"><input type="checkbox" name="modules" value="${key}" ${config.modules?.includes(key)?'checked':''}> ${value.label}</label><p class="help">${value.description}</p></div>`).join('')}</div></fieldset>
+      <div class="module-grid">${Object.entries(modules).map(([key,value])=>{const enabled=config.modules?.includes(key),settings=moduleOptions[key];return `<article class="module-card ${enabled?'is-enabled':''}" data-module-card="${key}"><label class="module-toggle"><span><strong>${value.label}</strong><small data-module-state>${enabled?'Activé':'Désactivé'}</small></span><input role="switch" aria-label="Activer ${value.label}" type="checkbox" name="modules" value="${key}" ${enabled?'checked':''}></label><p>${value.description}</p><details><summary>Configurer ce module</summary><p class="help">${settings.info}</p><a class="btn" href="#${settings.page}">${settings.action}</a><p class="help">${enabled?'':'Activez le module et enregistrez pour ouvrir son outil.'}</p></details></article>`;}).join('')}</div></fieldset>
       ${formEnd('Enregistrer les réglages')}</form>
+      ${demo?'<p class="notice">Réglages de démonstration conservés sur ce navigateur. Les sauvegardes et restaurations sont disponibles dans l’espace partagé.</p>':''}
       <section class="surface stack"><h2>Sauvegarde et restauration</h2><p>Exportez vos fiches, mouvements, contacts et réglages. Les photos restent hébergées dans votre espace. Les comptes et leurs droits sont conservés lors d’une restauration.</p><p class="help">Une restauration ne peut pas réécrire le journal de caisse, les documents ou les cotisations. Corrigez ces éléments par les annulations, remboursements et avoirs prévus.</p>
       <div class="page-actions">${button('Exporter une sauvegarde','download','core-backup')}${button('Restaurer une sauvegarde','upload','core-restore')}${button('Versions avant restauration','book','core-snapshots')}</div><div id="core-snapshots-list"></div>
       <input type="file" id="core-restore-file" accept="application/json,.json" hidden><div id="core-backup-status" role="status"></div></section>
       <section class="surface stack"><h2>Historique de l’espace</h2>${button('Afficher les dernières opérations','book','core-audit')}<div id="core-audit-list"></div></section>`;
+    main.querySelectorAll('[data-module-card]').forEach(card=>card.querySelector('input').addEventListener('change',event=>{card.classList.toggle('is-enabled',event.target.checked);card.querySelector('[data-module-state]').textContent=event.target.checked?'À activer · enregistrez':'À désactiver · enregistrez';}));
+    if(demo)main.querySelectorAll('#core-backup,#core-restore,#core-snapshots,#core-audit').forEach(node=>node.closest('section').hidden=true);
     formSubmit('core-settings',async data=>{
       await api('/settings',{method:'PATCH',body:{...Object.fromEntries(data),origins:data.get('origins').split('\n').map(value=>value.trim()).filter(Boolean),modules:data.getAll('modules'),intake:Object.fromEntries(['price','photos','reference','note'].map(key=>[key,data.getAll('intake').includes(key)]))}});
       await changed('Réglages enregistrés.');

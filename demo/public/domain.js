@@ -1,3 +1,6 @@
+import {modules} from './modules.js';
+import {validateCatalogue} from './module-config.js';
+import {cleanPricingEvidence} from './pricing-feedback.js';
 import {cleanVisualCondition,functionalityOptions} from './condition.js';
 import { organisations as defaultOrganisations, demoPhoto, hasRole, roleNames } from './permissions.js';
 import { createDemoProfiles } from './demo-profiles.js';
@@ -133,7 +136,7 @@ function move(row, site, zoneId) {
   Object.assign(row, { site_id: site.id, site_name: site.name, zone_id: zone?.id, zone_name: zone?.name });
 }
 
-function listRow({ photo, photos, history, ...row }) { return row; }
+function listRow({ photo, photos, history, ...row }) { return {...row,cover_photo:photos?.[0]||photo||null}; }
 
 function saveReference(row, body) {
   Object.assign(row, {
@@ -148,7 +151,7 @@ function saveReference(row, body) {
 function savePhotos(row, photos, selected) {
   if (!Array.isArray(photos) || photos.length > maxItemPhotos
     || photos.some(photo => typeof photo !== 'string' || !(shared && /^\/api\/core\/photos\/[a-z0-9-]+\/[a-z0-9-]+$/.test(photo)) && !(photo.length <= 400000 && /^data:image\/jpeg;base64,[a-z0-9+/=]+$/i.test(photo)))) {
-    error(400, 'Ajoutez au plus trois photos de l’exemplaire.');
+    error(400, 'Ajoutez au plus six photos de l’exemplaire.');
   }
   const choices = Array.isArray(selected) ? selected : [];
   row.photos = photos;
@@ -183,6 +186,7 @@ function newStock(body, state, me) {
   };
   if (barcode && body.catalog?.code === normalizeScanCode(barcode)) row.catalog = body.catalog;
   if (body.reference || body.description) saveReference(row, body);
+  if(body.pricing_evidence)row.pricing_evidence=cleanPricingEvidence(body.pricing_evidence,row.price_cents);
   savePhotos(row, body.photos ?? (body.photo ? [body.photo] : []), body.catalog_images);
   move(row, site, body.zone_id);
   if (parent) {
@@ -209,6 +213,7 @@ function act(row, body, state, me) {
   ensureActive(row);
   const { action } = body;
   if (action === 'edit') {
+    if(row.title!==body.title||row.barcode!==(body.barcode||''))delete row.pricing_evidence;
     row.title = text(body.title,'le nom de la fiche',150);
     row.note = text(body.note,'la note',1000,false);
     row.barcode = text(body.barcode,'le code-barres',80,false);
@@ -220,9 +225,12 @@ function act(row, body, state, me) {
     Object.assign(row, { state:'controle', note });
     record(row, me, 'controle', note);
   } else if (action === 'ready') {
+    const previousPrice=row.price_cents;
     if(body.functionality!==undefined){if(!functionalityOptions.some(([key])=>key===body.functionality))error(400,'Vérifiez le fonctionnement.');row.functionality=body.functionality;}
     Object.assign(row, { state:'pret', condition:text(body.condition, 'l’état constaté', 100, false),
       price_cents:validPrice(body.price_cents ?? row.price_cents) });
+    if(body.pricing_evidence)row.pricing_evidence=cleanPricingEvidence(body.pricing_evidence,row.price_cents);
+    else if(row.pricing_evidence&&row.price_cents!==previousPrice)row.pricing_evidence=cleanPricingEvidence({...row.pricing_evidence,confirmed:true},row.price_cents);
     record(row, me, 'pret', body.condition || 'Tri terminé');
   } else if (action === 'move') {
     move(row, find(state.sites, row.site_id, 'Site introuvable.'), body.zone_id);
@@ -239,6 +247,7 @@ function act(row, body, state, me) {
     if (!Number.isSafeInteger(body.price_cents) || body.price_cents < 0 || body.price_cents > 100000000)
       error(400, 'Indiquez un prix valide.');
     row.price_cents = body.price_cents;
+    if(row.pricing_evidence)row.pricing_evidence=cleanPricingEvidence({...row.pricing_evidence,confirmed:true},row.price_cents);
     record(row, me, 'prix', 'Prix défini en caisse · ' + (body.price_cents / 100).toFixed(2) + ' €');
     return listRow(row);
   } else if (action === 'workshop') {
@@ -255,6 +264,7 @@ function act(row, body, state, me) {
     Object.assign(row, { state:'sorti', exit_type:body.exit_type });
     record(row, me, body.exit_type, 'Sortie · ' + body.exit_type);
   } else if (action === 'reference') {
+    if(['brand','model','product_type'].some(key=>(row.reference?.[key]||'')!==(body.reference?.[key]||'')))delete row.pricing_evidence;
     saveReference(row, body);
     record(row, me, 'reference', 'Caractéristiques mises à jour');
   } else if (action === 'photo') {
@@ -431,7 +441,7 @@ function requestDemo(path, { method = 'GET', body } = {}) {
     ...operationMethods,
     ...planningMethods,
     profiles:['GET'],login:['POST'],logout:['POST'],me:['GET'],config:['GET'],cashiers:['GET'],
-    'cash-station':['POST'],storefront:['GET'],activity:['GET'],tours:['GET','POST','PATCH'],
+    settings:['PATCH'],'catalogue-status':['GET'],'catalogue-publish':['POST'],commerce:['GET','PUT','PATCH','DELETE','POST'],'cash-station':['POST'],storefront:['GET'],activity:['GET'],tours:['GET','POST','PATCH'],
     sales:['GET','POST'],stock:['GET','POST'],transfers:['GET','POST'],sites:['GET','POST','PATCH'],
     team:['GET','POST','PATCH'], contacts:['GET','POST','PATCH'],
   };
@@ -517,7 +527,10 @@ function requestDemo(path, { method = 'GET', body } = {}) {
   }
   let result;
   if (resource === 'me') return me;
-  if (resource === 'config') return {...seed.config,...state.settings,demo:!shared,customCategories:state.customCategories ?? []};
+  if(resource==='settings'){requireRole(me,'admin');if(shared)error(405,'Utilisez les réglages partagés.');state.settings??={};if(body.modules){if(!Array.isArray(body.modules)||body.modules.some(key=>!Object.hasOwn(modules,key)))error(400,'Module inconnu.');state.settings.modules=[...new Set(body.modules)];}if(body.catalogue)state.settings.catalogue=validateCatalogue(body.catalogue,state.settings.catalogue);for(const key of ['currency','locale','country','timeZone','origins','intake'])if(Object.hasOwn(body,key))state.settings[key]=body[key];save(state,identity.org);return {ok:true};}
+  if(resource==='commerce'){requireRole(me,'stock');if(method!=='GET')error(400,'Démonstration : connectez vos boutiques dans l’espace partagé. Aucun identifiant enregistré.');return {providers:['shopify','woocommerce'].map(provider=>({provider,connected:false,enabled:false,links:{}})),catalogue:null};}
+  if(['catalogue-status','catalogue-publish'].includes(resource)){requireRole(me,'stock');return {url:'',count:state.stock.filter(row=>row.web_visible&&row.state==='pret').length,pending:0,demo:true};}
+  if (resource === 'config') return {currency:'EUR',locale:'fr-FR',country:'FR',timeZone:'Europe/Paris',origins:['Apport volontaire','Collecte à domicile','Collecte partenaire','Déchèterie','Autre'],modules:Object.keys(modules),intake:{price:false,photos:true,reference:false,note:false},...seed.config,...state.settings,demo:!shared,customCategories:state.customCategories ?? []};
   if (resource === 'contacts') {
     requireRole(me,'reception','stock','administration');
     state.contacts ??= [];
@@ -541,7 +554,7 @@ function requestDemo(path, { method = 'GET', body } = {}) {
     if (method !== 'GET') error(405, 'Action indisponible.');
     return state.stock.filter(row => row.web_visible && row.state === 'pret' && Number.isSafeInteger(row.price_cents))
       .map(row => ({id:row.id,title:row.title,category:row.category,price_cents:row.price_cents,
-        site_id:row.site_id,site_name:row.site_name,description:row.description,photo:itemPhotos(row)[0]}));
+        site_id:row.site_id,site_name:row.site_name,description:row.description,photos:itemPhotos(row),photo:itemPhotos(row)[0]}));
   }
   if (resource === 'activity') {
     const register = searchParams.get('register') === '1';

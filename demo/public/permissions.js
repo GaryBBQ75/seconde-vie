@@ -12,7 +12,7 @@ export const pageRoles = {
   accueil:['reception','tri'], scanner:['reception','tri','atelier','stock','vente'],
   caisse:['vente'], stock:['reception','tri','atelier','stock'], controle:['tri','atelier','stock'],
   transferts:['reception','tri','stock'], planning:[], tournees:['collecte'], rapports:['rapports'],
-  contacts:['reception','stock','administration'], reglages:['admin'], registre:['registre'], vitrine:['stock'], equipe:['admin'], sites:['admin'],
+  contacts:['reception','stock','administration'], reglages:['admin'], registre:['registre'], vitrine:['stock'], boutiques:['stock'], equipe:['admin'], sites:['admin'],
   documents:['administration'], adhesions:['administration'], imports:['admin'],
 };
 

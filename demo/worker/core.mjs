@@ -1,3 +1,5 @@
+import {validateCatalogue,defaultCatalogue} from '../public/module-config.js';
+import {commerceRoute,publishCatalogue,catalogueStatus,afterStockWrite} from './commerce.mjs';
 import { createBusinessAPI } from '../public/domain.js';
 import seed from '../public/seed.js';
 import { hasRole, pageRoles } from '../public/permissions.js';
@@ -9,7 +11,7 @@ const collections = ['sites','stock','team','transfers','shifts','sales','tours'
 export const modulePages = Object.fromEntries(Object.entries(modules).map(([key,value])=>[key,value.pages]));
 export const defaultSettings = {
   currency:'EUR',locale:'fr-FR',country:'FR',timeZone:'Europe/Paris',type:'ressourcerie',
-  modules:[],intake:{price:false,photos:true,reference:false,note:false},customCategories:[],
+  modules:[],catalogue:defaultCatalogue,intake:{price:false,photos:true,reference:false,note:false},customCategories:[],
   origins:['Apport volontaire','Collecte à domicile','Collecte partenaire','Déchèterie','Autre'],
 };
 const uuid = () => crypto.randomUUID();
@@ -74,7 +76,7 @@ async function load(db,workspaceId) {
   for(const row of records.results) if(collections.includes(row.type)) state[row.type].push(JSON.parse(row.data));
   state.stock.sort((a,b)=>b.created_at.localeCompare(a.created_at));
   state.audit.sort((a,b)=>b.created_at.localeCompare(a.created_at));
-  return {workspace,state,records:records.results};
+  return {workspace,state,records:records.results.filter(row=>collections.includes(row.type))};
 }
 
 function principal(actor,workspace,state) {
@@ -134,6 +136,7 @@ function validateSettings(input,current=defaultSettings) {
     if(!Array.isArray(input.modules) || input.modules.some(key=>key!=='rapports' && !Object.hasOwn(modulePages,key))) fail(400,'Module inconnu.');
     next.modules=[...new Set(input.modules.filter(key=>key!=='rapports'))];
   }
+  if(Object.hasOwn(input,'catalogue'))next.catalogue=validateCatalogue(input.catalogue,current.catalogue);
   if(Object.hasOwn(input,'intake')) next.intake=Object.fromEntries(['price','photos','reference','note'].map(key=>[key,input.intake?.[key] === true]));
   if(Object.hasOwn(input,'origins')) {
     if(!Array.isArray(input.origins) || !input.origins.length || input.origins.length>15 || input.origins.some(value=>typeof value!=='string' || !value.trim() || value.length>100)) fail(400,'Indiquez entre 1 et 15 provenances.');
@@ -162,7 +165,7 @@ async function createWorkspace(db,actor,body) {
 async function photos(body,env,workspaceId) {
   const source=body.photos ?? (body.photo ? [body.photo] : null);
   if(source == null) return;
-  if(!Array.isArray(source) || source.length>3) fail(400,'Ajoutez au plus trois photos.');
+  if(!Array.isArray(source) || source.length>6) fail(400,'Ajoutez au plus six photos.');
   const values=[];
   for(const value of source) {
     if(typeof value !== 'string') fail(400,'Photo invalide.');
@@ -205,7 +208,7 @@ async function commit(db,loaded,state,actor,requestId,value,path,{snapshot=false
     const snapshotId=uuid();
     statements.push(db.prepare(`INSERT INTO sv_snapshots SELECT ?,id,name,settings,revision,? FROM sv_workspaces WHERE id=? AND revision=?`)
       .bind(snapshotId,new Date().toISOString(),workspace.id,revision));
-    statements.push(db.prepare(`INSERT INTO sv_snapshot_records SELECT ?,type,id,data FROM sv_records WHERE workspace_id=? AND ${conditions}`)
+    statements.push(db.prepare(`INSERT INTO sv_snapshot_records SELECT ?,type,id,data FROM sv_records WHERE workspace_id=? AND type!='commerce_private' AND ${conditions}`)
       .bind(snapshotId,workspace.id,workspace.id,revision));
   }
   // Write only changed records. All predicates use the old revision inside the same atomic batch.
@@ -306,6 +309,16 @@ export async function core(request,env) {
     const loaded=await load(db,workspaceId),{workspace}=loaded;
     let state=loaded.state;
     const context=business(actor,request,loaded),me=await context.api('/me');
+    if(path==='/catalogue-status' && request.method==='GET') {if(!hasRole(me,'stock'))fail(403,'Accès réservé au stock.');return result(await catalogueStatus(env,workspace.id),200,workspace.revision);}
+    if(path==='/catalogue-publish' || path.startsWith('/commerce')) {
+      if(me.cash_station)fail(403,'Action indisponible depuis un poste caisse.');
+      if(write&&Number(request.headers.get('If-Match'))!==workspace.revision)fail(409,'Actualisez l’espace avant la synchronisation.');
+      if(path==='/catalogue-publish') {
+        requireAdmin(me);if(request.method!=='POST')fail(405,'Méthode indisponible.');if(!state.settings.modules.includes('vitrine'))fail(403,'Activez le module Catalogue.');
+        return result(await publishCatalogue(env,workspace,state),200,workspace.revision);
+      }
+      return result(await commerceRoute({env,workspace,state,me,path,method:request.method,body}),200,workspace.revision);
+    }
     if(path==='/revision' && request.method==='GET') return result({revision:workspace.revision},200,workspace.revision);
     if(path==='/snapshot' && request.method==='GET') {
       const read=async (route,roles=[])=>hasRole(me,...roles) ? context.api(route) : [];
@@ -354,10 +367,12 @@ export async function core(request,env) {
         if(path==='/stock-import' && body.mode==='preview')return result(value,200,workspace.revision);
         state=context.read();
         const revision=await commit(db,loaded,state,actor,requestId,value,path);
+        if(['/stock','/sales','/refunds','/transfers'].some(prefix=>path===prefix||path.startsWith(prefix+'/')))await afterStockWrite(env,{...workspace,revision},state);
         return result(value,200,revision);
       }
       const value={ok:true};
       const revision=await commit(db,loaded,state,actor,requestId,value,path,{snapshot:path==='/restore'});
+      if(env.CATALOGUE_URL)await afterStockWrite(env,{...workspace,revision},state);
       return result(value,200,revision);
     }
     if(request.method!=='GET') fail(405,'Méthode indisponible.');
