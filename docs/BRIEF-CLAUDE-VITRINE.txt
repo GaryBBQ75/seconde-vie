@@ -87,3 +87,13 @@ Vérifier ordinateur, tablette et mobile, liens, CTA, clavier, contrastes, rédu
 Préserver le catalogue public et toutes les fonctions métier de l’app.
 Mettre les changements sur GitHub avec un commit clair ; ne pas écraser les mises à jour d’une autre conversation.
 GitHub et Sites sont deux destinations distinctes : un commit GitHub ne publie pas automatiquement les sites. Si l’accès au déploiement Sites n’est pas disponible, livrer le code et indiquer explicitement que la publication reste à faire.
+
+SCÈNES HUMAINES DEMANDÉES EXPLICITEMENT PAR GARY
+Donner une place équilibrée à ces trois contextes, dès le bandeau si possible puis dans la page :
+1. En caisse : une personne accueille un client devant un ordinateur, avec l’écran réel de caisse visible et un objet d’occasion au comptoir.
+2. Dans le stock : une personne scanne un produit ou son étiquette avec un téléphone, au milieu des étagères et objets. Montrer le geste et l’écran correspondant ; distinguer lecture du code-barres et identification photo.
+3. Dans les rayons : un membre de l’équipe consulte la fiche, le prix ou l’emplacement d’un objet, ou accompagne un client.
+
+Montrer aussi bien l’usage sur ordinateur que sur téléphone. Le site ne doit donner l’impression ni d’un simple logiciel de caisse, ni d’une app uniquement mobile, ni d’un outil de scan isolé.
+Ces scènes peuvent guider les rubriques du bandeau : « Au comptoir », « Dans le stock », « Dans les rayons ». Le décor et les personnes changent, l’application reste le fil conducteur et son écran correspond à la tâche montrée.
+Garder un équilibre entre les personnes, les objets et l’interface. Photos naturelles, lieux crédibles, matériel ordinaire ; éviter les équipes posées devant l’objectif et les boutiques de luxe sans lien avec une ressourcerie. Les scènes illustratives ne doivent pas être présentées comme de vrais clients de Seconde Vie.
