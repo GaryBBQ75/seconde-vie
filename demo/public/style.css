@@ -504,3 +504,8 @@ dialog.product-camera{position:fixed;inset:0;margin:0;width:100vw;max-width:none
 @media(max-width:850px){.nav-backdrop{left:235px}}
 
 @media(max-width:850px){.tabs button:not(.btn){min-height:44px}.table-scroll{max-width:100%}}
+
+/* Keep the agenda reachable while offering the same assignment controls. */
+.plan-roster>summary{cursor:pointer;font-weight:700;min-height:44px;align-content:center}.plan-roster-content{display:grid;gap:12px}.plan-roster[open]>summary{margin-bottom:12px}
+.plan-roster{display:block}.plan-roster:not([open])>.plan-roster-content{display:none}
+@media(max-width:760px){.plan-roster-content{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.plan-roster-content>.help,.plan-roster-content>#drag-add{grid-column:1/-1}.plan-roster .field input,.plan-roster .field select{min-height:44px;font-size:16px}}

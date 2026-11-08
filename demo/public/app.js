@@ -46,6 +46,8 @@ const cashSite = () => getSite(siteFilter) || sites.find(site => /vente|boutique
 let config, me, sites = [], stock = [], transfers = [], shifts = [], team = [], contacts = [];
 let syncStatus='synced',persistEntry,workspaces=[];
 const draftScope=()=>me.org+'-'+me.id;
+const inventoryViews = new Map();
+const inventoryViewKey = (target = page) => [me?.org, me?.id, target, siteFilter].join(':');
 let page = 'accueil', filter = '', search = '', siteFilter = localStorage.getItem('secondevie-site') || '';
 let compactNav = localStorage.getItem('secondevie-compact-nav') === 'true';
 let detailedIntake = localStorage.getItem('secondevie-detailed-intake') === 'true';
@@ -232,12 +234,14 @@ async function changed(message, draft) {
   render(draft);
   notice(message);
 }
-function go(target, replace = false, nextFilter = '', draft) {
+function go(target, replace = false, nextFilter, draft) {
   if (!canOpen(me,target)) target = firstAvailablePage(me,config,{demo:demoMode}) || 'indisponible';
   if (dialog.hasAttribute('open')) closeDialog();
   page = target;
-  filter = nextFilter;
-  search = '';
+  const savedView = ['stock','controle'].includes(target) && nextFilter === undefined ? inventoryViews.get(inventoryViewKey(target)) : null;
+  filter = nextFilter ?? savedView?.filter ?? '';
+  search = savedView?.search ?? '';
+  if (nextFilter !== undefined) inventoryViews.delete(inventoryViewKey(target));
   if (location.hash !== '#' + target) history[replace ? 'replaceState' : 'pushState'](null, '', '#' + target);
   render(draft);
   window.scrollTo(0, 0);
@@ -883,11 +887,13 @@ function inventory(main) {
     ${inCheck ? '' : `<div class="tabs">${[['','Tout'], ...Object.entries(statusNames)].map(([state,label]) => `<button type="button" class="${filter === state ? 'active' : ''}" data-filter="${state}" aria-pressed="${filter === state}">${label}</button>`).join('')}</div>`}</div><div class="stock-summary"><span id="stock-count" role="status" aria-live="polite"></span><button type="button" class="btn" id="stock-reset" hidden>Effacer les filtres</button></div><div id="stock-table"></div>`;
   const pageSize = 50;
   const entries = siteRows().map(row => ({ row, text:stockSearchText(row) }));
-  let offset = 0;
+  let offset = inventoryViews.get(inventoryViewKey())?.offset || 0;
   function draw() {
     const terms = searchText(search).split(/\s+/).filter(Boolean);
     const rows = entries.filter(({row,text}) => (inCheck ? row.state === 'controle' : !filter || filter === row.state)
       && terms.every(term => text.includes(term))).map(entry => entry.row);
+    offset = Math.min(offset, Math.max(0, Math.ceil(rows.length / pageSize) - 1) * pageSize);
+    inventoryViews.set(inventoryViewKey(), {search, filter, offset});
     document.getElementById('stock-count').textContent = rows.length + (rows.length === 1 ? ' fiche' : ' fiches');
     document.getElementById('stock-reset').hidden = !search && (!filter || inCheck);
     const node = document.getElementById('stock-table');
@@ -1826,11 +1832,17 @@ async function detail(id) {
   on('detail-exit',()=>actionForm(r,'exit','Confirmer la sortie',field('Motif',`<select name="exit_type" required><option value="">Choisir un motif</option>${allowed('vente')&&r.state==='pret'?option('vente','Vente'):''}${option('don','Don')}${option('recyclage','Recyclage')}${option('decheterie','Déchèterie')}</select>`)+'<p class="help">Cette fiche sera retirée du stock disponible.</p>',d=>({exit_type:d.get('exit_type')})));
 }
 function actionForm(row,action,title,fields,body) {
-  showDialog(title,`<form id="action-form">${fields}${formEnd('Enregistrer')}</form>`);
+  const continueReview = action === 'ready' && page === 'controle';
+  showDialog(title,`<form id="action-form">${fields}${continueReview ? '<label class="check"><input type="checkbox" name="review_next" checked>Ouvrir le prochain objet à vérifier après enregistrement</label>' : ''}${formEnd('Enregistrer')}</form>`);
   formSubmit('action-form',async d=>{
     await api('/stock/'+row.id+'/action',{method:'POST',body:{action,...await body(d)}});
     await changed('Fiche mise à jour.');
-    await detail(row.id);
+    if (continueReview && d.has('review_next')) {
+      const terms = searchText(search).split(/\s+/).filter(Boolean);
+      const next = siteRows().find(item => item.id !== row.id && item.state === 'controle' && terms.every(term => stockSearchText(item).includes(term)));
+      if (next) await detail(next.id);
+      else notice('Vérification terminée pour cette sélection.');
+    } else await detail(row.id);
   });
   return document.getElementById('action-form');
 }

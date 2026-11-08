@@ -168,3 +168,19 @@ Chrome à largeur mobile ne remplace pas Safari iPhone ni Chrome Android
 sur appareil. Ni caméra physique, terminal bancaire, imprimante, service
 marchand réel, charge importante ou coupure réseau n’ont été certifiés.
 Le site marketing confié à Claude n’a pas été refondu dans cette passe.
+
+MISE À JOUR — AMÉLIORATIONS APPLIQUÉES APRÈS AUDIT
+- Planning : panneau d’affectation replié sur mobile, ouvert sur ordinateur ;
+  vue Jour par défaut sur mobile, préférence distincte de la vue ordinateur.
+  Sans date mémorisée, la semaine courante s’ouvre sur la date du jour.
+- Stock / À vérifier : recherche, filtre et page mémorisés pendant la session
+  de navigation, séparément par profil, structure, rubrique et site.
+  La pagination est ramenée dans les bornes lorsque la liste se réduit.
+- Contrôle : case cochée par défaut pour ouvrir le prochain objet à vérifier
+  après validation. La sélection respecte la recherche et le site courants.
+  Un message indique la fin de la sélection ; la case peut être décochée.
+Vérifications : recherche « tabouret » et filtre Prêt conservés après passage
+par Réception ; validation d’une lampe fictive ouvrant le jeu suivant ;
+planning Jour et panneau fermé à 390 px, Semaine et panneau ouvert à 1440 px.
+Les suites 119 tests dépôt et 115 tests démo passent ; construction réussie.
+Les autres propositions et limites de l’audit restent valables.

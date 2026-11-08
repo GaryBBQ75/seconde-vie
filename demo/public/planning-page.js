@@ -10,7 +10,7 @@ export async function mountPlanning(main,{api,esc,header,field,input,button,form
   let week;try{week=mondayOf(saved.week || dateKey(Date.now(),zone));}catch{week=mondayOf(dateKey(Date.now(),zone));}
   let mode=modes.includes(saved.mode)?saved.mode:modes[0],person=data.manager && data.people.some(row=>row.id===saved.person)?saved.person:'',activity=config.activities.includes(saved.activity)?saved.activity:'';
   let calendarCleanup=null,calendarGeneration=0,disposed=false;
-  const drag={member:saved.drag?.member || '',activity:saved.drag?.activity || '',duration:saved.drag?.duration,site:saved.drag?.site || '',calendarView:saved.drag?.calendarView,focus:saved.drag?.focus};
+  const drag={member:saved.drag?.member || '',activity:saved.drag?.activity || '',duration:saved.drag?.duration,site:saved.drag?.site || '',calendarView:saved.drag?.calendarView,mobileCalendarView:saved.drag?.mobileCalendarView,focus:saved.drag?.focus};
   const labels={week:'Agenda',agenda:'Mon agenda',people:'Par personne',list:'Liste',mine:'Mes créneaux',team:'Équipe',availability:'Disponibilités'};
   const save=()=>sessionStorage.setItem(key,JSON.stringify({week,mode,person,activity,drag}));
   const on=(id,callback,event='click')=>main.querySelector('#'+id)?.addEventListener(event,e=>{try{Promise.resolve(callback(e)).catch(error=>notice(error.message));}catch(error){notice(error.message);}});
