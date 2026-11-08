@@ -2,7 +2,7 @@
 
 Site public distinct de l’espace privé de gestion. La racine présente l’app avec un aperçu interactif : scan central, quatre étapes, mouvement du fond, navigation clavier et pause / réduction des animations. Les écrans du hero sont des exemples illustratifs, pas une session métier.
 
-Le lien `/?r=<id-espace>` affiche uniquement le catalogue choisi par une ressourcerie. Recherche, catégories, boutiques, tri par prix, détail et galerie mobile. Pas de panier, réservation ou commande dans cette version.
+Le lien `/catalogue.html?r=<id-espace>` affiche uniquement le catalogue choisi par une ressourcerie. Recherche, catégories, boutiques, tri par prix, détail et galerie mobile. Pas de panier, réservation ou commande dans cette version.
 
 Les données publiques sont publiées depuis le module Catalogue de l’espace privé. Elles sont sauvegardées dans R2. `CATALOGUE_WRITE_KEY` est un secret de serveur, configuré aussi dans l’application de gestion ; aucune valeur ne doit être ajoutée au code ni aux exemples de configuration. Toutes les écritures sont authentifiées. Les lectures publiques ne contiennent ni donateur, ni notes internes, ni historique, ni identifiants marchands. Aucune liste de structures n’est exposée. Les images ne sont lisibles que si elles appartiennent encore à un produit affiché dans le catalogue courant. Le retrait d’un produit retire son image du catalogue accessible.
 

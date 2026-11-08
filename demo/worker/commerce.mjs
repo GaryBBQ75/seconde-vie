@@ -56,7 +56,7 @@ export async function publishCatalogue(env,workspace,state,{upload=true}={}){
     items.push({id:row.id,title:row.title,code:row.code,category:row.category,description:row.description,condition:row.condition,price_cents:row.price_cents,quantity:onlineQuantity(row),site_name:row.site_name,photos:hashes});
    }
    const data=await jsonFetch(env.CATALOGUE_URL+'/api/update/'+workspace.id,{method:'PUT',headers:{Authorization:'Bearer '+env.CATALOGUE_WRITE_KEY,'Content-Type':'application/json'},body:JSON.stringify({...state.settings.catalogue,name:workspace.name,currency:state.settings.currency,revision:workspace.revision,items})});
-   Object.assign(record,{photos,last_sync:now(),error:'',pending,count:data.count,url:env.CATALOGUE_URL+'/?r='+workspace.id});await savePrivate(env,workspace.id,'catalogue',record);return {url:record.url,count:data.count,pending,last_sync:record.last_sync};
+   Object.assign(record,{photos,last_sync:now(),error:'',pending,count:data.count,url:env.CATALOGUE_URL+'/catalogue.html?r='+workspace.id});await savePrivate(env,workspace.id,'catalogue',record);return {url:record.url,count:data.count,pending,last_sync:record.last_sync};
   }catch(error){record.error=error.message;record.photos=photos;await savePrivate(env,workspace.id,'catalogue',record);throw error;}
  });
 }
