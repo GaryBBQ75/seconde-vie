@@ -1,0 +1,74 @@
+SECONDE VIE — SECOND AUDIT APRÈS MODIFICATIONS
+8 novembre 2026
+
+RÉSULTAT
+Une régression de navigation identifiée, corrigée et revérifiée : les
+recherches du stock n’étaient pas restaurées lors du changement de site.
+Aucune autre régression observée dans les scénarios décrits ci-dessous.
+Ce constat n’équivaut pas à une absence garantie de défauts.
+
+COUVERTURE
+Les 19 rubriques distinctes ont été ouvertes dans Chrome à 1440, 768 et
+390 pixels de largeur. Les quatre liens rapides ont également été parcourus,
+soit 69 ouvertures pour 57 combinaisons distinctes rubrique/largeur.
+Contrôle du titre, du débordement global et des en-têtes de tableaux.
+Essais sur la démonstration locale, avec données et profils fictifs.
+Pas de modification de stock, vente ou droits dans l’espace réel.
+
+DÉFAUT TROUVÉ ET CORRIGÉ — P2
+Reproduction : dans Tous les sites, rechercher « tabouret » ; passer à
+Atelier des Passages et rechercher « lampe » ; revenir à Tous les sites.
+Avant : « lampe » remplaçait la recherche « tabouret » mémorisée.
+Cause : le sélecteur de site redessinait directement la liste sans restaurer
+le contexte enregistré pour le nouveau site.
+Correction : le sélecteur restaure maintenant le contexte de navigation
+pour Stock et À vérifier. Les autres rubriques conservent leur fonctionnement.
+Après : première visite du site sans recherche ; retour à Tous les sites =
+« tabouret » ; retour à Atelier des Passages = « lampe ».
+
+SCÉNARIOS VÉRIFIÉS
+- 19 rubriques × 3 largeurs : titres présents, aucun débordement horizontal
+  global. Le défilement interne des tableaux reste autorisé.
+- Rapports et registre : les colonnes ne sont plus masquées sur mobile.
+- Stock et contrôle : Quantité et Prix sont masqués comme colonnes sur petit
+  écran, mais repris dans les cartes produit ; comportement attendu.
+- Recherche par site : aller-retour confirmé après correction, comme décrit
+  ci-dessus.
+- Changement de profil : Réception retrouve une recherche vide ; le retour
+  au Responsable retrouve sa propre recherche « lampe ».
+- Profil Réception : accès direct à Réglages redirigé vers Réception.
+- Profil Caisse : accès direct à Rapports redirigé vers Caisse.
+- Fin de la file À vérifier : validation du dernier objet fictif, compteur
+  à zéro, dialogue fermé et message « Vérification terminée pour cette
+  sélection ». Pas de réouverture de l’objet terminé.
+- Planning mobile : panneau d’affectation fermé, vue Jour initiale ; choix
+  explicite de Semaine conservé après un aller-retour dans le stock.
+- Planning ordinateur : panneau d’affectation ouvert et vue Semaine.
+- Aucune erreur console relevée par le navigateur dans ce parcours.
+
+VÉRIFICATIONS AUTOMATISÉES
+Après correction : suites du dépôt et de la démonstration relancées,
+119 et 115 tests respectivement ; ces suites se recouvrent.
+Construction de la copie GitHub et de la version hébergée vérifiée.
+
+POINTS ENCORE À AMÉLIORER
+P2 — Planning mobile : les indicateurs et actions de coordination occupent
+encore une place importante au-dessus du calendrier. Une vue de consultation
+plus compacte serait utile ; garder toutes les actions accessibles.
+P2 — Contacts : créer un contact directement depuis un devis ou une adhésion,
+puis revenir au formulaire sans ressaisie. L’accès direct aux Contacts existe,
+mais ne remplace pas encore ce parcours intégré.
+P2 — Migration : correspondance de colonnes et prise en charge de volumes
+supérieurs au CSV actuel, avec simulation et bilan des erreurs.
+P2 — Transferts : scan en série et récapitulatif avant départ/arrivée.
+Ces évolutions ne sont pas présentées comme réalisées dans cette passe.
+
+LIMITES ET ESSAIS TERRAIN
+Audit ciblé de non-régression et passage transversal des écrans, pas un test
+exhaustif de tous les formulaires et de tous les rôles à chaque largeur.
+La pagination au-delà de 50 objets n’a pas été exercée dans le navigateur
+pendant ce second audit. Le code ramène l’index dans les limites de la liste.
+La caméra physique, Safari iPhone, Android réel, les imprimantes, les
+connecteurs marchands réels, le hors-ligne et les grandes volumétries restent
+à éprouver. La validation sécurité métier automatisée ne vaut pas test
+d’intrusion indépendant. Les limites du premier audit restent applicables.

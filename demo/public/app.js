@@ -307,7 +307,12 @@ function render(draft) {
     toggle.title = label;
     localStorage.setItem('secondevie-compact-nav', String(compactNav));
   });
-  on('current-site', e => { siteFilter = e.target.value; localStorage.setItem('secondevie-site-' + me.org,siteFilter); render(); }, 'change');
+  on('current-site', e => {
+    siteFilter = e.target.value;
+    localStorage.setItem('secondevie-site-' + me.org,siteFilter);
+    if (page === 'stock' || page === 'controle') go(page, true);
+    else render();
+  }, 'change');
   const main = document.querySelector('#main');
   if(['documents','adhesions','imports'].includes(page)) {
     const tools=operationTools();
