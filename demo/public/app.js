@@ -234,6 +234,7 @@ async function changed(message, draft) {
 }
 function go(target, replace = false, nextFilter = '', draft) {
   if (!canOpen(me,target)) target = firstAvailablePage(me,config,{demo:demoMode}) || 'indisponible';
+  if (dialog.hasAttribute('open')) closeDialog();
   page = target;
   filter = nextFilter;
   search = '';
@@ -2030,7 +2031,7 @@ function memberForm(member) {
     ${field(demoMode ? 'E-mail fictif' : 'E-mail du compte de connexion',input('email',`type="email" maxlength="254" placeholder="exemple@example.test" required value="${esc(member?.email)}"`))}
     <fieldset><legend>Fonctions</legend><div class="form-row">${Object.entries(roleNames).map(([id,label])=>`<label class="check"><input type="checkbox" name="roles" value="${id}" ${roles.includes(id)?'checked':''}> ${label}</label>`).join('')}</div></fieldset>
     ${demoMode ? field('Code terrain (4 à 6 chiffres)',input('pin','type="password" inputmode="numeric" pattern="[0-9]{4,6}" maxlength="6" autocomplete="off"')) : ''}
-    <p class="help">${demoMode ? 'Laissez vide pour conserver le code.' : 'La personne utilisera son propre compte avec cette adresse. Son accès au site doit aussi être autorisé dans les réglages de partage du site.'}</p>
+    <p class="help">${demoMode ? (member ? 'Laissez vide pour conserver le code.' : 'Choisissez un code pour ce profil de démonstration.') : 'La personne utilisera son propre compte avec cette adresse. Son accès au site doit aussi être autorisé dans les réglages de partage du site.'}</p>
     ${field(demoMode ? 'Photo fictive (facultative)' : 'Photo (facultative)', input('photo','type="file" accept="image/jpeg,image/png,image/webp"'))}
     ${member && member.id !== me.id ? `<label class="check"><input type="checkbox" name="active" ${member.active?'checked':''}> Compte actif</label>` : ''}
     ${formEnd('Enregistrer')}</form>`);

@@ -1,0 +1,170 @@
+SECONDE VIE — AUDIT TRANSVERSAL DE L’APPLICATION
+8 novembre 2026
+
+CONCLUSION
+L’application possède déjà une base métier étendue : réception, stock,
+caisse, transferts, planning, documents, adhésions et exports. Le prochain
+gain vient surtout de parcours plus courts et d’une meilleure mise en avant
+de l’action attendue. La priorité est un pilote accompagné en ressourcerie,
+pas l’ajout immédiat de nombreux modules supplémentaires.
+
+PÉRIMÈTRE ET MÉTHODE
+Les 19 rubriques ont été ouvertes dans Chrome, en démonstration locale,
+aux largeurs 1440 et 390 pixels. Contrôle du contenu, des titres, du
+ débordement horizontal de la page, des tableaux et des commandes tactiles.
+Ouverture des formulaires de transfert, tournée, contact, équipe et site.
+Création réelle d’une entrée fictive via « Enregistrer et continuer » :
+enregistrement confirmé, champ nom réinitialisé, catégorie conservée.
+Contrôle du calendrier après son chargement asynchrone.
+Relecture ciblée des routes, formulaires, styles et tests métier.
+115 tests de l’application et 119 tests du dépôt passent après corrections.
+Ces nombres se recouvrent : il ne s’agit pas de 234 scénarios indépendants.
+Les contrôles de droits sont principalement automatisés ; l’ensemble des
+écrans n’a pas été parcouru manuellement avec chaque rôle.
+
+CORRECTIONS RÉALISÉES
+P1 — Rapports et registre sur mobile : une règle générale masquait les
+colonnes à partir de la quatrième, dont Site, Quantité et Poids. La règle
+est désormais limitée au stock, où les informations sont reprises dans
+les cartes. Les autres tableaux conservent toutes leurs colonnes et leur
+défilement horizontal. Vérification dans les rapports à 390 px : aucun
+en-tête masqué et aucun débordement global de page.
+P2 — Changement de rubrique : un dialogue de l’ancienne page pouvait
+rester ouvert après une navigation par historique ou lien. Il se ferme
+désormais au changement de rubrique. Parcours document → contacts vérifié.
+P2 — Premier document / première adhésion : le simple message demandait
+un contact sans permettre d’y accéder. Une action « Ouvrir les contacts »
+est maintenant proposée. L’état vide des documents contient aussi ce lien.
+P2 — Commandes tactiles : cible de 44 px pour les titres de produits,
+les boutons d’onglets concernés et la saisie manuelle de réception.
+P3 — Nouveau profil de démonstration : l’aide ne demande plus de
+« conserver » un code inexistant.
+
+AUDIT PAR RUBRIQUE
+1. Réception
+Affichage desktop/mobile et création manuelle vérifiés. La catégorie reste
+sélectionnée après création : utile pour traiter une série. Conserver les
+champs avancés repliés. Prochaine amélioration : mesurer le temps nécessaire
+pour un objet simple, un lot et un objet photographié avec un opérateur.
+2. Scanner
+Écran et modes présents. Les tests couvrent des comportements de scan et
+les solutions de repli. Lecture caméra réelle, lumière faible, refus de
+permission et téléphone ancien restent à valider sur appareils physiques.
+3. Caisse
+Écran et filtres contrôlés. Les tests couvrent caisse fermée, ouverture,
+fond, mouvements, clôture, prix modifié, remise, espèces insuffisantes,
+double vente et correction. Priorité terrain : scanner plusieurs articles,
+encaisser et imprimer un ticket sur le matériel réellement utilisé.
+4. Stock
+Table sur ordinateur, cartes sur mobile, compteur et remise à zéro des
+filtres déjà présents. Touches produit agrandies. Amélioration proposée :
+conserver recherche et filtres lors du retour d’une fiche et proposer des
+vues enregistrées par poste. À valider avec les habitudes des opérateurs.
+5. À vérifier
+Même base de cartes que le stock. Les tests couvrent motif, prix et mise en
+rayon. Prochaine simplification : action « enregistrer et suivant » avec
+retour clair sur le nombre restant, sans supprimer les contrôles métier.
+6. Transferts
+Écran et formulaire ouverts. Tests des quantités, transferts partiels,
+arrivées et répétition de requêtes. Amélioration : parcours au scan en série
+avec récapitulatif avant départ, puis liste des écarts à l’arrivée.
+7. Planning
+Calendrier chargé sans erreur console observée. Sur mobile, les commandes
+et la liste de personnes précèdent l’agenda et le repoussent loin vers le
+bas. Priorité P2 : agenda du jour ou liste en premier, panneau d’affectation
+repliable. Ne pas dépendre uniquement du glisser-déposer.
+8. Tournées
+Écran et formulaire vérifiés ; tests des états métier. Prochaine étape :
+mettre l’étape courante et la confirmation de passage au premier plan sur
+mobile. Navigation GPS et travail hors réseau non validés ici.
+9. Rapports
+Filtres, indicateurs, journal et exports visibles. Colonnes mobiles
+corrigées. Proposer ensuite des périodes rapides et une explication claire
+des poids manquants, pour éviter d’interpréter un poids inconnu comme zéro.
+10. Devis et factures
+État vide et accès au premier client améliorés. Tests des numéros, émission,
+conversion, règlements bornés et avoirs. L’application annonce explicitement
+qu’elle ne transmet pas les documents à une plateforme de facturation
+électronique. Aucune certification comptable ou juridique par cet audit.
+11. Adhésions
+État vide contrôlé, accès au contact amélioré. Tests des dates, chevauchements
+et annulations. Amélioration : renouvellement en une action et liste des
+échéances à traiter, avec confirmation avant tout envoi de rappel.
+12. Préparer le registre
+Écran et tableau inspectés ; correction du masquage mobile applicable.
+Les exports sont des documents de travail : la conformité à un registre
+réglementaire spécifique doit être validée séparément.
+13. Catalogue
+Écran interne vérifié. Tests limitant le catalogue aux produits disponibles
+et protégeant les données privées. Clarifier partout la différence entre
+catalogue de produits de la ressourcerie et site de présentation du logiciel.
+14. Vente en ligne
+Écran inspecté. Shopify et WooCommerce ont des tests de connexion et de
+publication simulés. Aucun compte marchand réel ni commande réelle testé.
+Ne pas présenter eBay ou d’autres canaux comme pleinement opérationnels
+sans une validation propre au connecteur. Tester conflits de stock,
+révocation d’accès et reprise après erreur avant usage commercial.
+15. Contacts
+État vide, recherche et formulaire inspectés. Tests de doublons existants.
+Priorité P2 : permettre de créer un contact depuis document/adhésion et
+revenir automatiquement au formulaire initial, sans ressaisie.
+16. Importer du stock
+Aperçu avant confirmation, modèle CSV et contrôle des doublons présents.
+Limites affichées : 200 lignes, 1 Mo. Tests d’aperçu sans écriture et import
+atomique. Ce n’est pas encore une migration universelle depuis un autre
+logiciel : prévoir correspondance de colonnes, simulation et bilan d’import.
+17. Équipe
+Formulaire et fonctions inspectés. Tests d’isolation, autorisations,
+révocation et protection du propriétaire. Aide du profil démo corrigée.
+Prévoir des profils de poste compréhensibles et vérifier chaque compte
+pilote avec ses droits réels avant l’ouverture à une équipe.
+18. Sites et zones
+Écran et formulaire inspectés ; validations métier couvertes. Amélioration :
+présélectionner le site habituel, tout en gardant le site courant visible
+pour éviter une réception ou une vente au mauvais endroit.
+19. Réglages
+Modules et personnalisation présents ; validations de configuration et de
+marque testées. Amélioration : séparer « démarrer » et réglages avancés,
+avec aperçu des conséquences lors de la désactivation d’un module.
+
+CONTRÔLES TRANSVERSAUX
+Navigation : aucun débordement global détecté lors du passage initial des
+19 écrans aux deux largeurs. Le défilement interne d’un tableau reste permis.
+Photos : mécanismes de compression et limites existants ; qualité réelle,
+HEIC, rotation EXIF et réseau lent à éprouver avec des photos de téléphones.
+Sécurité métier : suites existantes sur isolation entre structures, droits,
+requêtes concurrentes, doubles opérations, photos protégées, CSRF et secrets
+des connecteurs. Cela ne remplace pas un test d’intrusion indépendant.
+Sauvegarde : tests de restauration atomique et de préservation des droits ;
+un exercice de restauration sur l’hébergement de production reste requis.
+Accessibilité : contrôle ciblé des noms, tailles tactiles et dialogues.
+Audit lecteur d’écran, contraste exhaustif, zoom 200 % et clavier complet
+non réalisés. Ne pas annoncer une conformité WCAG sur cette base.
+Performance : aucun benchmark sous forte volumétrie ni réseau dégradé.
+Pas de mesure de temps de réponse en production dans cet audit.
+
+PLAN PRIORISÉ
+Avant un pilote réel (P1)
+- Effectuer un cycle réception → contrôle → prix → rayon → vente → retour,
+  avec les appareils, imprimante et opérateurs de la ressourcerie pilote.
+- Exercer une sauvegarde/restauration et les accès réels de chaque poste.
+- Valider une connexion marchande réelle avant d’activer la vente externe.
+- Confirmer le périmètre comptable et les documents effectivement attendus.
+Ensuite, simplifier les tâches fréquentes (P2)
+- Planning mobile centré sur le jour et les affectations utiles.
+- Création de contact dans le parcours document/adhésion avec retour direct.
+- Traitement « suivant » au contrôle et scan de transferts en série.
+- Retour au stock conservant le contexte de recherche.
+- Migration guidée avec correspondance des colonnes et bilan des erreurs.
+Après observation terrain (P3)
+- Favoris par poste, raccourcis utiles et opérations groupées encadrées.
+- Indicateurs sur temps de saisie, nombre d’actions, erreurs et reprises.
+- Optimisation des grandes listes fondée sur une mesure de volumétrie.
+
+LIMITES
+Audit transversal réalisé sur le code et la démonstration ; aucune vente,
+modification de stock ou invitation réelle effectuée en production.
+Chrome à largeur mobile ne remplace pas Safari iPhone ni Chrome Android
+sur appareil. Ni caméra physique, terminal bancaire, imprimante, service
+marchand réel, charge importante ou coupure réseau n’ont été certifiés.
+Le site marketing confié à Claude n’a pas été refondu dans cette passe.
