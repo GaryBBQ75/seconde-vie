@@ -486,3 +486,20 @@ dialog.product-camera{position:fixed;inset:0;margin:0;width:100vw;max-width:none
 .photo-preview{position:relative}.photo-preview>.photo-drag-handle{position:absolute;left:5px;bottom:35px}.photo-main-badge{position:absolute;top:5px;left:5px;background:#fff;font-size:9px;padding:2px 5px;border-radius:5px}
 
 .sidebar.brand-light{color:#17231b}.sidebar.brand-light .brand span,.sidebar.brand-light .navtitle{color:#334438}.sidebar.brand-light .navlink{color:#17231b}.brand img{object-fit:contain;border-radius:6px}
+
+/* Stock scanning and mobile navigation */
+.stock-summary{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:12px 0;color:var(--sub)}
+.nav-backdrop{position:fixed;inset:0;background:#13231b66;z-index:6}.nav-backdrop[hidden]{display:none}
+@media(max-width:850px){
+ .topbar-start{flex-shrink:0}.topright{min-width:0;gap:6px}.site-switch{max-width:43vw;min-width:0}.mobile-menu{flex-shrink:0}
+ .sidebar.open ~ .workspace .mobile-menu{position:fixed;z-index:8;left:239px;top:5px;background:#fff}
+ #stock-search{min-width:0;width:100%}main:has(#stock-table) .searchbox{width:100%}
+ .stock-list{border:0;background:transparent;overflow:visible}.stock-list table,.stock-list tbody{display:block;width:100%}.stock-list thead{display:none}
+ .stock-list tr{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;padding:14px;margin-bottom:10px;background:var(--paper);border:1px solid var(--line);border-radius:10px}
+ .stock-list td{padding:0;border:0;min-width:0}.stock-list td:first-child{grid-column:1/-1}.stock-list td:nth-child(2){font-size:12px}.stock-list td:nth-child(3){align-self:end}.stock-list td:nth-child(n+4){display:none}
+ .stock-list .item-title .tile{display:flex}.stock-list .stock-compact-data{display:block;font-size:14px;font-weight:650;color:var(--ink);margin-top:6px}.stock-list .item-title button{min-height:32px;text-align:left;font-size:15px}
+ .stock-list .item-title>div{min-width:0}.stock-list .item-title small{overflow-wrap:anywhere}
+}
+@media(max-width:850px){.topbar .breadcrumb{display:none}.stock-list td:first-child{width:auto}.stock-list .item-title>div{flex:1}.stock-list .item-title .tile{flex-shrink:0}}
+
+@media(max-width:850px){.nav-backdrop{left:235px}}

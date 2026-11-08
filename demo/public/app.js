@@ -258,7 +258,7 @@ function render(draft) {
     ${brand()}<div class="sidebar-links">
       ${fieldNav ? `<nav class="navgroup"><div class="navtitle">Au quotidien</div>${fieldNav}</nav>` : ''}
       <nav class="navgroup"><div class="navtitle">Organisation</div>${officeNav}</nav>
-    </div></aside>
+    </div></aside><button type="button" class="nav-backdrop" id="nav-backdrop" aria-label="Fermer le menu" hidden></button>
     <div class="workspace"><header class="topbar"><div class="topbar-start"><button type="button" id="menu" class="icon-button mobile-menu" aria-label="Menu" aria-controls="sidebar" aria-expanded="false">${icon('menu')}</button><button type="button" id="compact-nav" class="icon-button desktop-menu" aria-controls="sidebar" aria-expanded="${!compactNav}" aria-label="${compactNav ? 'Agrandir' : 'Réduire'} le menu" title="${compactNav ? 'Agrandir' : 'Réduire'} le menu">${icon('sidebar')}</button><div class="breadcrumb"><span class="org">${esc(me.org_name)}</span><span class="org">${icon('chevron',12)}</span><strong>${pageNames[page]}</strong></div></div><div class="topright">${page === 'scanner' ? '' : `<select id="current-site" class="site-switch" ${me.cash_station ? 'disabled' : ''} aria-label="${page === 'accueil' ? 'Site de réception' : 'Filtrer par site'}">${page === 'caisse' ? siteOptions(cashSite()?.id) : page === 'accueil' ? siteOptions(workingSite()?.id) : option('', 'Tous les sites', siteFilter) + siteOptions(siteFilter)}</select>`}
       ${!demoMode ? '<button type="button" class="btn core-sync" id="core-sync" aria-live="polite">Synchronisé</button>' : '<span class="pill">Démonstration</span>'}
       <button type="button" class="btn current-profile" id="switch-profile" aria-label="Changer de profil · ${esc(me.name)}" title="Changer de profil">
@@ -287,7 +287,11 @@ function render(draft) {
   on('menu', e => {
     const isOpen = document.querySelector('#sidebar').classList.toggle('open');
     document.getElementById('menu').setAttribute('aria-expanded', String(isOpen));
+    document.getElementById('nav-backdrop').hidden=!isOpen;
   });
+  const closeMenu=()=>{document.getElementById('sidebar').classList.remove('open');document.getElementById('nav-backdrop').hidden=true;document.getElementById('menu').setAttribute('aria-expanded','false');document.getElementById('menu').focus();};
+  on('nav-backdrop',closeMenu);
+  root.onkeydown=e=>{if(e.key==='Escape'&&document.getElementById('sidebar')?.classList.contains('open')){e.preventDefault();closeMenu();}};
   on('compact-nav', e => {
     compactNav = !compactNav;
     root.querySelector('.shell').classList.toggle('nav-compact', compactNav);
@@ -861,7 +865,7 @@ function header(title, sub = '', actions = '') {
 }
 function table(rows) {
   if (!rows.length) return '<div class="surface empty">Aucun objet ou lot ici pour le moment.</div>';
-  return `<div class="surface table-scroll"><table><thead><tr><th>Objet ou lot</th><th>Site / zone</th><th>État</th><th>Quantité</th><th>Prix</th></tr></thead><tbody>${rows.map(row => {
+  return `<div class="surface table-scroll stock-list"><table><thead><tr><th>Objet ou lot</th><th>Site / zone</th><th>État</th><th>Quantité</th><th>Prix</th></tr></thead><tbody>${rows.map(row => {
     return `<tr><td><div class="item-title">${stockVisual(row)}<div><button type="button" data-stock="${row.id}">${esc(row.title)}</button><small>${esc(row.code)} · ${esc(row.category)}</small><small class="stock-compact-data">${esc(measure(row))}${row.price_cents == null ? '' : ' · ' + euro.format(row.price_cents / 100)}</small></div></div></td>
       <td>${row.state === 'transit' ? 'En déplacement' : esc(row.site_name)}${row.zone_name && row.state !== 'transit' ? `<span class="minor">${esc(row.zone_name)}</span>` : ''}</td><td>${status(row)}</td><td>${esc(measure(row))}</td><td>${row.price_cents == null ? '—' : euro.format(row.price_cents/100)}</td></tr>`;
   }).join('')}</tbody></table></div>`;
@@ -875,7 +879,7 @@ function inventory(main) {
   const buttons = button('Scanner','scan','stock-scan') + (allowed('reception','tri') ? button('Nouveau don','plus','stock-add','primary') : '') + (admin() && !inCheck ? button('Export CSV','download','stock-export') : '');
   main.innerHTML = header(inCheck ? 'À vérifier' : 'Stock', inCheck ? 'Les objets mis de côté et le motif du contrôle.' : 'Retrouvez vos objets et lots, du tri jusqu’à leur sortie.', buttons)
     + `<div class="toolbar"><label class="searchbox">${icon('search',16)}<input id="stock-search" type="search" value="${esc(search)}" placeholder="Nom, catégorie ou référence…" aria-label="Rechercher dans le stock" aria-keyshortcuts="${shortcutKeys('R')}">${keyHint('R')}</label>
-    ${inCheck ? '' : `<div class="tabs">${[['','Tout'], ...Object.entries(statusNames)].map(([state,label]) => `<button type="button" class="${filter === state ? 'active' : ''}" data-filter="${state}" aria-pressed="${filter === state}">${label}</button>`).join('')}</div>`}</div><div id="stock-table"></div>`;
+    ${inCheck ? '' : `<div class="tabs">${[['','Tout'], ...Object.entries(statusNames)].map(([state,label]) => `<button type="button" class="${filter === state ? 'active' : ''}" data-filter="${state}" aria-pressed="${filter === state}">${label}</button>`).join('')}</div>`}</div><div class="stock-summary"><span id="stock-count" role="status" aria-live="polite"></span><button type="button" class="btn" id="stock-reset" hidden>Effacer les filtres</button></div><div id="stock-table"></div>`;
   const pageSize = 50;
   const entries = siteRows().map(row => ({ row, text:stockSearchText(row) }));
   let offset = 0;
@@ -883,6 +887,8 @@ function inventory(main) {
     const terms = searchText(search).split(/\s+/).filter(Boolean);
     const rows = entries.filter(({row,text}) => (inCheck ? row.state === 'controle' : !filter || filter === row.state)
       && terms.every(term => text.includes(term))).map(entry => entry.row);
+    document.getElementById('stock-count').textContent = rows.length + (rows.length === 1 ? ' fiche' : ' fiches');
+    document.getElementById('stock-reset').hidden = !search && (!filter || inCheck);
     const node = document.getElementById('stock-table');
     node.innerHTML = (rows.length > pageSize
       ? `<nav class="stock-pages" aria-label="Pages du stock"><span aria-live="polite">${offset + 1}–${Math.min(rows.length,offset + pageSize)} sur ${rows.length}</span>
@@ -896,6 +902,7 @@ function inventory(main) {
     });
   }
   draw();
+  on('stock-reset', () => {search='';filter='';offset=0;document.getElementById('stock-search').value='';main.querySelectorAll('[data-filter]').forEach(b=>{b.classList.toggle('active',b.dataset.filter==='');b.setAttribute('aria-pressed',String(b.dataset.filter===''));});draw();});
   on('stock-add', () => go('accueil'));
   on('stock-scan', () => go('scanner'));
   on('stock-export', downloadStock);
