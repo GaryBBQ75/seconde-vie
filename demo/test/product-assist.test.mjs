@@ -77,3 +77,31 @@ test('analyse : une à six vues du même produit, toutes transmises en un seul a
   assert.equal((await productAssist(request({...body,photos:[oversized]}),env)).status,400);assert.equal(calls,2);
  }finally{globalThis.fetch=original;}
 });
+
+test('prix : accepter la référence marque-modèle même si le code-barres est absent de l’annonce',()=>{
+ const rows=normalizeComparables(raw,{...identity,barcode:'4006381333931'});assert(rows.every(row=>row.eligible&&row.exact));
+ const other=normalizeComparables({results:[{...source(20,50),title:'Fauteuil IKEA STRANDMON occasion'}]},{...identity,barcode:'4006381333931'});assert.equal(other[0].eligible,false);
+});
+test('prix : deux offres réelles sans état détaillé donnent un repère provisoire explicitement limité',()=>{
+ const rows=normalizeComparables({results:[40,50].map((value,index)=>({title:'Fauteuil IKEA POÄNG occasion',url:'https://www.leboncoin.fr/ad/ameublement/'+index,content:'Prix : '+value+' EUR.'}))},identity);
+ assert(rows.every(row=>row.eligible&&!row.condition));const estimate=resourcerieEstimate(rows,{condition:'good',provisional:true});assert.equal(estimate.cents,3200);assert.equal(estimate.provisional,true);assert.match(estimate.confidence,/limité/);assert.equal(estimate.warnings.length,2);
+ assert.equal(resourcerieEstimate(rows.slice(0,1),{condition:'good',provisional:true}),null);assert.equal(resourcerieEstimate(rows,{condition:'parts',provisional:true}),null);
+ const unknown=resourcerieEstimate(rows,{provisional:true});assert.equal(unknown.cents,3200);assert(unknown.warnings.some(text=>text.includes('produit à confirmer')));
+});
+test('prix : montants localisés et formats sources, sans prix ambigu ni prix neuf',()=>{
+ assert.equal(sourcePrice('Prix : 1 250,50 €'),125050);assert.equal(sourcePrice('€40.00'),4000);assert.equal(sourcePrice('1,250.50 €'),null);
+ const rows=normalizeComparables({output:{sources:[{name:'Fauteuil IKEA POÄNG reconditionné',url:'https://example.org/poang',content:'Prix : 40 EUR.'}]}},identity);assert.equal(rows[0].price_cents,4000);assert.equal(rows[0].eligible,true);
+});
+test('réception : le code décodé est conservé même si le modèle n’a pas lu de code',async()=>{
+ const original=globalThis.fetch;globalThis.fetch=async()=>Response.json({choices:[{message:{content:JSON.stringify({candidates:[{...identity,category:'Mobilier'}]})}}]});
+ try{const response=await productAssist(request({operation:'identify',photo,categories:['Mobilier'],detected_barcodes:['4006381333931','invalide']}),{EDENAI_API_KEY:'test'});const data=await response.json();assert.equal(data.candidates[0].barcode,'4006381333931');assert.equal(data.detected_barcodes.length,1);}finally{globalThis.fetch=original;}
+});
+test('recherche prix : utiliser la clé SerpAPI configurée et les prix EUR structurés sans dépendre de la clé de vision',async()=>{
+ const original=globalThis.fetch;globalThis.fetch=async url=>{assert.equal(url.hostname,'serpapi.com');assert.equal(url.searchParams.get('engine'),'google');assert.equal(url.searchParams.get('api_key'),'search-secret');assert(!url.searchParams.get('q').includes('{'));return Response.json({organic_results:[40,50].map((price,index)=>({title:'Fauteuil IKEA POÄNG occasion',link:'https://www.leboncoin.fr/ad/ameublement/'+index,snippet:'Fauteuil IKEA POÄNG',rich_snippet:{bottom:{detected_extensions:{price,currency:'EUR'},extensions:['Occasion']}}}))});};
+ try{const response=await productAssist(request({operation:'compare',identity:{...identity,barcode:'4006381333931'},condition:'good'}),{SERPAPI_API_KEY:'search-secret'}),data=await response.json();assert.equal(response.status,200);assert.equal(data.comparables[0].price_cents,4000);assert.equal(resourcerieEstimate(data.comparables,{condition:'good',provisional:true}).cents,3200);assert(!JSON.stringify(data).includes('search-secret'));}finally{globalThis.fetch=original;}
+});
+test('les produits neufs au féminin et les appareils en panne ne deviennent pas des repères pour un produit fonctionnel',()=>{
+ const rows=normalizeComparables({results:[{...source(31,30),title:'Fauteuil IKEA POÄNG neuve avec étiquette'},{...source(32,40),title:'Fauteuil IKEA POÄNG occasion',snippet:'En panne. Prix : 40 EUR.'},{...source(33,50),title:'Fauteuil IKEA POÄNG avec housse occasion'}]},identity);
+ assert.equal(rows[0].blocked,true);assert.equal(rows[1].condition,'parts');assert.equal(rows[2].eligible,true);
+ assert.equal(resourcerieEstimate(rows,{condition:'good',provisional:true}),null);
+});

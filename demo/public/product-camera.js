@@ -1,34 +1,56 @@
-// Keep the camera open for successive shots; no analysis starts from this module.
-export async function openProductCamera({photos,esc,encodePhoto,onOpen=()=>{},onClose=()=>{},onChange=()=>{},onError=()=>{}}) {
-  if(!navigator.mediaDevices?.getUserMedia)return onError('La caméra directe n’est pas disponible ici. Utilisez Importer ou la caméra du téléphone dans Autres options.');
-  const panel=document.createElement('dialog');
-  panel.className='product-camera';
-  panel.setAttribute('aria-labelledby','product-camera-title');
-  panel.innerHTML=`<header><div><span class="eyebrow">Photos du produit</span><h2 id="product-camera-title">Photographiez à la suite</h2></div><button type="button" class="btn" data-close aria-label="Fermer la caméra">×</button></header><div class="product-camera-view"><video autoplay playsinline muted></video><p data-camera-start role="status">Ouverture de la caméra…</p></div><p data-camera-status role="status">Une vue d’ensemble, puis l’étiquette et les détails.</p><ol class="assist-photo-list" data-camera-photos></ol><footer><button type="button" class="btn primary" data-shutter disabled>Prendre la photo</button><button type="button" class="btn" data-done>Terminer</button></footer>`;
-  let stream,closed=false,busy=false,captureError='';
-  const video=panel.querySelector('video'),shutter=panel.querySelector('[data-shutter]'),status=panel.querySelector('[data-camera-status]');
-  function close(){if(closed)return;closed=true;stream?.getTracks().forEach(track=>track.stop());video.srcObject=null;panel.close?.();panel.remove();window.removeEventListener('pagehide',close);onChange();onClose();}
-  function draw(){panel.querySelector('[data-camera-photos]').innerHTML=photos.map((src,index)=>`<li><img src="${esc(src)}" alt="Vue ${index+1}"><span>${index+1}</span><button type="button" data-remove="${index}" aria-label="Supprimer la photo ${index+1}">×</button></li>`).join('');status.textContent=captureError||`${photos.length} / 6 photos${photos.length>=6?' · Série complète. Terminez ou supprimez une vue.':' · Vous pouvez prendre la suivante.'}`;panel.querySelector('[data-done]').disabled=busy;shutter.disabled=busy||photos.length>=6||!stream||video.readyState<2;}
-  onOpen(close);document.body.append(panel);panel.showModal();window.addEventListener('pagehide',close);
-  panel.querySelector('[data-close]').addEventListener('click',close);panel.querySelector('[data-done]').addEventListener('click',close);panel.addEventListener('cancel',event=>{event.preventDefault();close();});
-  panel.querySelector('[data-camera-photos]').addEventListener('click',event=>{const button=event.target.closest('[data-remove]');if(!button||busy)return;photos.splice(Number(button.dataset.remove),1);draw();onChange();});
-  shutter.addEventListener('click',async()=>{
-    if(closed||busy||photos.length>=6||video.readyState<2)return;
-    busy=true;captureError='';draw();status.textContent='Enregistrement de la photo…';
-    try {
-      const canvas=document.createElement('canvas'),ratio=Math.min(1,1600/Math.max(video.videoWidth,video.videoHeight));
-      canvas.width=Math.round(video.videoWidth*ratio);canvas.height=Math.round(video.videoHeight*ratio);canvas.getContext('2d').drawImage(video,0,0,canvas.width,canvas.height);
-      const blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/jpeg',.9));
-      if(!blob)throw new Error('La photo n’a pas pu être prise. Réessayez.');
-      const photo=await encodePhoto(blob);if(closed)return;photos.push(photo);onChange();
-    }catch(error){if(!closed)captureError=error.message;}
-    finally{busy=false;if(!closed)draw();}
-  });
-  draw();
-  try {
-    stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:1600},height:{ideal:1200}},audio:false});
-    if(closed){stream.getTracks().forEach(track=>track.stop());return;}
-    video.srcObject=stream;await video.play();if(closed)return;
-    panel.querySelector('[data-camera-start]').hidden=true;draw();video.addEventListener('loadeddata',draw,{once:true});
-  }catch(error){if(!closed){close();onError(error.name==='NotAllowedError'?'Autorisez la caméra pour prendre plusieurs photos à la suite. Vous pouvez aussi importer vos images.':'La caméra ne peut pas être ouverte. Utilisez Importer ou la caméra du téléphone dans Autres options.');}}
+import {icon} from './icons.js';
+export function captureGeometry(width,height,zoom=1){
+ const scale=Math.max(1,Number(zoom)||1),sw=width/scale,sh=height/scale,ratio=Math.min(1,2000/Math.max(sw,sh));
+ return {sx:(width-sw)/2,sy:(height-sh)/2,sw,sh,width:Math.max(1,Math.round(sw*ratio)),height:Math.max(1,Math.round(sh*ratio))};
+}
+// A series stays in memory until the operator explicitly starts the analysis.
+export async function openProductCamera({photos,esc,encodePhoto,onPhoto=async()=>{},onOpen=()=>{},onClose=()=>{},onChange=()=>{},onError=()=>{}}){
+ if(!navigator.mediaDevices?.getUserMedia)return onError('Caméra directe indisponible dans ce navigateur. Ouvrez l’application en HTTPS ou importez vos photos.');
+ const panel=document.createElement('dialog');panel.className='product-camera';panel.setAttribute('aria-labelledby','product-camera-title');
+ panel.innerHTML=`<header><button type="button" class="camera-icon-btn" data-close aria-label="Fermer la caméra">×</button><div><h2 id="product-camera-title">Photos du produit</h2><span data-camera-count>0 / 6</span></div><button type="button" class="camera-icon-btn" data-options aria-expanded="false" aria-controls="product-camera-options"><svg aria-hidden="true" width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 6h18M3 12h18M3 18h18"/><circle cx="8" cy="6" r="2" fill="#18261f"/><circle cx="16" cy="12" r="2" fill="#18261f"/><circle cx="9" cy="18" r="2" fill="#18261f"/></svg><span class="sr-only">Options caméra</span></button></header><section id="product-camera-options" class="product-camera-options" hidden><label>Objectif<select data-camera-device><option value="back">Arrière · automatique</option><option value="front">Avant</option></select></label><button type="button" class="btn" data-camera-torch aria-pressed="false" hidden>Éclairage</button></section><div class="product-camera-view"><video autoplay playsinline muted></video><div class="product-camera-guide" aria-hidden="true"></div><p data-camera-start role="status">Ouverture de la caméra…</p></div><div class="product-camera-zoom"><button type="button" data-zoom="1" aria-pressed="true">1×</button><button type="button" data-zoom="2" aria-pressed="false">2×</button><button type="button" data-zoom="3" aria-pressed="false">3×</button><input data-camera-zoom type="range" min="1" max="4" step="0.1" value="1" aria-label="Zoom caméra"><span data-zoom-label>1×</span></div><p data-camera-status role="status">Vue d’ensemble, étiquette, détails.</p><ol class="assist-photo-list" data-camera-photos></ol><footer><button type="button" class="camera-flip" data-camera-flip>Avant / arrière</button><button type="button" class="camera-shutter" data-shutter aria-label="Prendre la photo" disabled>${icon('camera',28)}</button><button type="button" class="camera-done" data-done>Terminer</button></footer>`;
+ const video=panel.querySelector('video'),shutter=panel.querySelector('[data-shutter]'),status=panel.querySelector('[data-camera-status]'),device=panel.querySelector('[data-camera-device]'),slider=panel.querySelector('[data-camera-zoom]'),torchButton=panel.querySelector('[data-camera-torch]');
+ let stream,track,closed=false,busy=false,opening=false,zooming=false,captureError='',requestVersion=0,choice='back',capabilities={},baseline=1,zoom=1,digital=1,torch=false,zoomVersion=0,zoomTask=Promise.resolve();
+ const originalOverflow=document.body.style?.overflow||'';
+ function close(){if(closed)return;closed=true;requestVersion++;stream?.getTracks().forEach(item=>item.stop());video.srcObject=null;panel.close?.();panel.remove();if(document.body.style)document.body.style.overflow=originalOverflow;window.removeEventListener('pagehide',close);onChange();onClose();}
+ function draw(){
+  panel.querySelector('[data-camera-photos]').innerHTML=photos.map((src,index)=>`<li><img src="${esc(src)}" alt="Vue ${index+1}"><span>${index+1}</span><button type="button" data-remove="${index}" aria-label="Supprimer la photo ${index+1}">×</button></li>`).join('');
+  panel.querySelector('[data-camera-count]').textContent=`${photos.length} / 6`;
+  status.textContent=captureError||(photos.length>=6?'Série complète. Terminez ou supprimez une vue.':photos.length?`${photos.length} photo${photos.length>1?'s':''} · Prenez la suivante, ou terminez.`:'Cadrez l’objet, puis son étiquette pour lire les références.');
+  shutter.disabled=busy||opening||zooming||photos.length>=6||!stream||video.readyState<2;panel.querySelector('[data-done]').disabled=busy;device.disabled=busy||opening;panel.querySelector('[data-camera-flip]').disabled=busy||opening;slider.disabled=busy||opening;torchButton.disabled=busy||opening;
+  panel.querySelectorAll?.('[data-zoom]').forEach(button=>{button.disabled=busy||opening;button.setAttribute('aria-pressed',String(Number(button.dataset.zoom)===zoom));});
+ }
+ function setZoom(value){
+  zoom=Math.max(Number(slider.min)||1,Math.min(4,Number(value)||1));slider.value=String(zoom);zooming=true;draw();const version=++zoomVersion,target=zoom;zoomTask=zoomTask.catch(()=>{}).then(async()=>{if(closed||version!==zoomVersion)return;try{const current=track;let optical=1;
+  if(current&&Number.isFinite(capabilities.zoom?.min)&&Number.isFinite(capabilities.zoom?.max)&&current.applyConstraints)try{const actual=Math.min(capabilities.zoom.max,Math.max(capabilities.zoom.min,baseline*target));await current.applyConstraints({advanced:[{zoom:actual,...(capabilities.torch?{torch}:{}),...(capabilities.focusMode?.includes('continuous')?{focusMode:'continuous'}:{})}]});optical=(current.getSettings?.().zoom||actual)/baseline;}catch{}
+  if(closed||version!==zoomVersion||current!==track)return;
+  digital=Math.max(1,target/optical);video.style.transform=`scale(${digital})`;panel.querySelector('[data-zoom-label]').textContent=zoom.toFixed(1).replace('.0','')+'×'+(digital>1.01?' · numérique':'');draw();}finally{if(!closed&&version===zoomVersion){zooming=false;draw();}}});return zoomTask;
+ }
+ async function start(next='back',recover=true){
+  const version=++requestVersion,previous=stream?choice:'';zoomVersion++;zooming=false;opening=true;captureError='';draw();stream?.getTracks().forEach(item=>item.stop());stream=null;track=null;video.srcObject=null;panel.querySelector('[data-camera-start]').hidden=false;
+  try{
+   const lens=next.startsWith('device:')?{deviceId:{exact:next.slice(7)}}:{facingMode:next==='front'?{exact:'user'}:{ideal:'environment'}};
+   const incoming=await navigator.mediaDevices.getUserMedia({video:{...lens,width:{ideal:1920},height:{ideal:1440}},audio:false});
+   if(closed||version!==requestVersion){incoming.getTracks().forEach(item=>item.stop());return;}
+   stream=incoming;track=stream.getVideoTracks?.()[0]||stream.getTracks()[0];choice=next;capabilities=track.getCapabilities?.()||{};baseline=track.getSettings?.().zoom||1;zoom=1;digital=1;torch=false;video.style.transform='scale(1)';slider.min=String(capabilities.zoom?.min/baseline<1?Math.max(.5,capabilities.zoom.min/baseline):1);slider.value='1';panel.querySelector('[data-zoom-label]').textContent='1×';torchButton.hidden=!capabilities.torch;torchButton.setAttribute('aria-pressed','false');
+   if(capabilities.focusMode?.includes('continuous'))try{await track.applyConstraints({advanced:[{focusMode:'continuous'}]});}catch{}
+   video.srcObject=stream;await video.play();if(closed||version!==requestVersion)return;
+   panel.querySelector('[data-camera-start]').hidden=true;opening=false;draw();video.addEventListener('loadeddata',draw,{once:true});
+   const devices=(await navigator.mediaDevices.enumerateDevices?.().catch(()=>[])||[]).filter(item=>item.kind==='videoinput'&&item.deviceId);
+   if(closed||version!==requestVersion)return;
+   device.innerHTML='<option value="back">Arrière · automatique</option><option value="front">Avant</option>'+devices.map((item,index)=>`<option value="device:${esc(item.deviceId)}">${esc(item.label||'Objectif '+(index+1))}</option>`).join('');device.value=choice;
+   track.addEventListener?.('ended',()=>{if(!closed&&version===requestVersion){close();onError('La caméra s’est arrêtée. Les photos prises sont conservées.');}},{once:true});
+  }catch(error){if(closed||version!==requestVersion)return;opening=false;if(recover&&previous&&next!==previous&&error.name!=='NotAllowedError')return start(previous,false);close();onError(error.name==='NotAllowedError'?'Autorisez la caméra pour prendre des photos. Vous pouvez aussi importer vos images.':'Cet objectif ne peut pas être ouvert. Vous pouvez importer vos photos.');}
+ }
+ onOpen(close);document.body.append(panel);if(document.body.style)document.body.style.overflow='hidden';panel.showModal();window.addEventListener('pagehide',close);
+ panel.querySelector('[data-close]').addEventListener('click',close);panel.querySelector('[data-done]').addEventListener('click',close);panel.addEventListener('cancel',event=>{event.preventDefault();close();});
+ panel.querySelector('[data-options]').addEventListener('click',()=>{const options=panel.querySelector('#product-camera-options');options.hidden=!options.hidden;panel.querySelector('[data-options]').setAttribute('aria-expanded',String(!options.hidden));});
+ device.addEventListener('change',()=>start(device.value));panel.querySelector('[data-camera-flip]').addEventListener('click',()=>start(track?.getSettings?.().facingMode==='user'||choice==='front'?'back':'front'));
+ slider.addEventListener('input',()=>setZoom(slider.value));panel.querySelectorAll?.('[data-zoom]').forEach(button=>button.addEventListener('click',()=>setZoom(button.dataset.zoom)));
+ torchButton.addEventListener('click',async()=>{if(!track||!capabilities.torch)return;const current=track,next=!torch;try{await current.applyConstraints({advanced:[{torch:next,...(capabilities.zoom?{zoom:Math.min(capabilities.zoom.max,Math.max(capabilities.zoom.min,baseline*zoom))}:{}),...(capabilities.focusMode?.includes('continuous')?{focusMode:'continuous'}:{})}]});if(closed||current!==track)return;torch=next;torchButton.setAttribute('aria-pressed',String(torch));}catch{captureError='Éclairage indisponible sur cet objectif.';draw();}});
+ panel.querySelector('[data-camera-photos]').addEventListener('click',event=>{const button=event.target.closest('[data-remove]');if(!button||busy)return;photos.splice(Number(button.dataset.remove),1);draw();onChange();});
+ shutter.addEventListener('click',async()=>{
+  if(closed||busy||opening||photos.length>=6||video.readyState<2)return;busy=true;captureError='';draw();status.textContent='Enregistrement de la photo…';
+  try{const area=captureGeometry(video.videoWidth,video.videoHeight,digital),canvas=document.createElement('canvas');canvas.width=area.width;canvas.height=area.height;canvas.getContext('2d').drawImage(video,area.sx,area.sy,area.sw,area.sh,0,0,area.width,area.height);const blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/jpeg',.92));if(!blob)throw new Error('La photo n’a pas pu être prise. Réessayez.');const encoded=await encodePhoto(blob);if(closed)return;await onPhoto(blob,encoded);if(closed)return;photos.push(encoded);onChange();}catch(error){if(!closed)captureError=error.message;}finally{busy=false;if(!closed)draw();}
+ });
+ draw();await start();
 }

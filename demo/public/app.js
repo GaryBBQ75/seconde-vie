@@ -798,6 +798,7 @@ function cashPage(main) {
 }
 
 function home(main, draft) {
+  main.classList.add('mobile-intake');
   const site = workingSite();
   if (!site) {
     main.innerHTML = header('Réception des dons') + '<p class="surface empty">Ajoutez un site avant de réceptionner un don.</p>';
@@ -811,14 +812,14 @@ function home(main, draft) {
         <div class="panel-head"><h2 id="receive-title">Nouvelle entrée</h2></div>
         <div class="panel-body" id="receiving-flow"></div>
       </section>
-      <section class="intake-activity" aria-labelledby="recent-title">
+      <details class="intake-activity" ${window.matchMedia('(max-width: 1100px)').matches?'':'open'}><summary>Activité du site · ${rows.length} entrées</summary>
         <div class="work-counts">
           <button type="button" id="intake-tri">${icon('sort', 17)} À trier <strong>${rows.filter(row => row.state === 'tri').length}</strong></button>
           <button type="button" id="intake-check">${icon('wrench', 17)} À vérifier <strong>${rows.filter(row => row.state === 'controle').length}</strong></button>
         </div>
         <div class="section-head"><h2 id="recent-title">Dernières entrées</h2>${rows.length ? button('Imprimer la dernière étiquette','printer','intake-label','ghost') : ''}</div>
         ${recentEntries(rows.slice(0, 8))}
-      </section>
+      </details>
     </div>`;
   scanPage(document.getElementById('receiving-flow'),{intake:true,draft,resume:draft?null:readIntakeDraft(draftScope(),site.id)});
   on('receive-scan', () => go('scanner'));
@@ -948,10 +949,10 @@ function receive({ parent, barcode = '', title = '', category = '', catalog, ref
       ${field('Nom de l’entrée (facultatif)', input('title', `maxlength="150" placeholder="Ex. Carton de livres" value="${esc(title)}"`))}
       ${field('Prix de vente (€, facultatif)', input('price', 'type="number" min="0" max="1000000" step="0.01" inputmode="decimal" placeholder="À définir" value="'+(priceCents==null?'':priceCents/100)+'"'))}
     </div>
-    <details class="entry-extras" data-intake-pricing></details>
+    <div class="intake-barcode-field">${field('Code-barres d’origine (EAN ou ISBN)', input('barcode', `maxlength="80" inputmode="numeric" value="${esc(barcode)}"`) + '<small>Le code imprimé sur l’objet ou son emballage. Facultatif.</small>')}</div>
+    <section class="entry-extras" data-intake-pricing></section>
     <div class="price-suggestion" data-price-suggestion aria-live="polite" hidden></div>
     ${market ? '<details class="entry-extras"><summary>Prix vus en ligne</summary><div data-intake-market aria-live="polite"></div></details>' : ''}
-    ${barcode ? `<p class="intake-barcode">${icon('scan', 15)} Code scanné <strong>${esc(barcode)}</strong></p>` : ''}
     ${catalogCard(catalog)}
     <details class="entry-photos" ${photo || resume?.photos?.length ? 'open' : ''}><summary>Photos (facultatif)</summary>
       ${photoEditor()}${catalogGallery(catalog, [], true)}</details>
@@ -964,7 +965,7 @@ function receive({ parent, barcode = '', title = '', category = '', catalog, ref
       ${descriptionField(description ?? catalogDescription(catalog))}${field('État visuel (facultatif)',input('condition',`maxlength="100" placeholder="À vérifier au tri" value="${esc(condition)}"`))}<div data-intake-functionality>${field('Fonctionnement',`<select name="functionality">${functionalityOptions.map(([key,label])=>option(key,label,functionality)).join('')}</select>`)}</div><div data-reference-fields></div>
       ${field('Note', `<textarea name="note" maxlength="1000">${esc(note)}</textarea>`)}
       ${parent ? '' : `<div data-optional-weight>${field('Poids mesuré (kg, facultatif)', input('weight_optional', 'type="number" inputmode="decimal" min="0.001" step="0.001"'))}</div>`}
-      ${field('Code-barres d’origine (EAN ou ISBN)', input('barcode', `maxlength="80" inputmode="numeric" value="${esc(barcode)}"`) + '<small>Le code imprimé sur l’objet ou son emballage. Facultatif.</small>')}
+
     </div></details>
     <div class="intake-footer"><div class="form-error" role="alert"></div><div class="intake-actions">
       <button class="btn primary" type="submit">${icon('check', 17)} ${parent ? 'Isoler l’objet' : 'Enregistrer'}</button>
@@ -1470,7 +1471,7 @@ function scanPage(main,{intake=false,draft,resume}={}) {
   const zoomButtons = [...cameraPanel.querySelectorAll('[data-scan-zoom]')];
   let zoomCamera;
   let lookup = 0;
-  function showScanMode(mode){if(!intake)return;endScan();for(const name of ['photo','code','manual']){const selected=name===mode,tab=document.getElementById('scan-'+name+'-tab');tab.setAttribute('aria-selected',String(selected));tab.tabIndex=selected?0:-1;}document.getElementById('scan-product-assist').hidden=mode!=='photo';document.getElementById('scan-manual-panel').hidden=mode!=='manual';document.getElementById('scan-code-panel').hidden=mode!=='code';target.hidden=mode!=='code';document.getElementById('market-panel').hidden=mode!=='code'||!document.getElementById('market-panel').querySelector('[data-market-results]').hasChildNodes();if(mode==='code')codeInput.focus({preventScroll:true});}
+  function showScanMode(mode){if(!intake)return;endScan();for(const name of ['photo','code','manual']){const selected=name===mode,tab=document.getElementById('scan-'+name+'-tab');tab.setAttribute('aria-selected',String(selected));tab.tabIndex=selected?0:-1;}document.getElementById('scan-product-assist').hidden=mode!=='photo';document.getElementById('scan-manual-panel').hidden=mode!=='manual';document.getElementById('scan-code-panel').hidden=mode!=='code';target.hidden=mode!=='code';document.getElementById('market-panel').hidden=mode!=='code'||!document.getElementById('market-panel').querySelector('[data-market-results]').hasChildNodes();if(mode==='code'&&keyboardPointer.matches)codeInput.focus({preventScroll:true});}
   function openIntake(value){if(!intake)return go('accueil',false,'',value);showScanMode('manual');receive({inline:true,...value});}
   on('scan-new-entry',()=>go('accueil'));
   if(intake){const modes=['code','photo','manual'];for(const mode of modes){const tab=document.getElementById('scan-'+mode+'-tab');tab.addEventListener('click',()=>showScanMode(mode));tab.addEventListener('keydown',event=>{if(['ArrowLeft','ArrowRight','Home','End'].includes(event.key)){event.preventDefault();const next=event.key==='Home'?'code':event.key==='End'?'manual':modes[(modes.indexOf(mode)+(event.key==='ArrowLeft'?2:1))%3];showScanMode(next);document.getElementById('scan-'+next+'-tab').focus();}});}receive({inline:true,resume,...draft});showScanMode(draft||resume?'manual':'photo');}else if(!handheld.matches)codeInput.focus({preventScroll:true});
@@ -2390,7 +2391,7 @@ if(!demoMode)setInterval(async()=>{
   try {
     const value=await api('/revision');
     if(value.revision<=currentRevision())return;
-    const editing=document.querySelector('[data-planning-busy="1"]') || dialog.hasAttribute('open') || document.querySelector('form[data-saving]') || document.querySelector('form[data-dirty]');
+    const editing=Boolean(stopCamera||stopObjectCamera) || document.querySelector('[data-planning-busy="1"]') || dialog.hasAttribute('open') || document.querySelector('form[data-saving]') || document.querySelector('form[data-dirty]');
     if(editing) {syncStatus='updates';updateSyncBadge();}
     else {await refresh();render();}
   } catch { /* The sync badge already explains a network or access failure. */ }
@@ -2426,7 +2427,7 @@ if(!demoMode)setInterval(async()=>{
   try {
     const value=await api('/revision');
     if(value.revision<=currentRevision())return;
-    const editing=document.querySelector('[data-planning-busy="1"]') || dialog.hasAttribute('open') || document.querySelector('form[data-saving]') || document.querySelector('#intake-form[data-dirty]') || document.querySelector('[data-assist-form][data-dirty]');
+    const editing=Boolean(stopCamera||stopObjectCamera) || document.querySelector('[data-planning-busy="1"]') || dialog.hasAttribute('open') || document.querySelector('form[data-saving]') || document.querySelector('#intake-form[data-dirty]') || document.querySelector('[data-assist-form][data-dirty]');
     if(editing) {syncStatus='updates';updateSyncBadge();}
     else {await refresh();render();}
   } catch { /* The sync badge already explains a network or access failure. */ }
