@@ -484,3 +484,5 @@ dialog.product-camera{position:fixed;inset:0;margin:0;width:100vw;max-width:none
 .assist-photo-list li>span{width:auto;min-width:24px;padding:0 6px;left:7px;top:7px;bottom:auto}.assist-photo-list .photo-drag-handle{right:auto;left:5px;top:auto;bottom:5px}
 
 .photo-preview{position:relative}.photo-preview>.photo-drag-handle{position:absolute;left:5px;bottom:35px}.photo-main-badge{position:absolute;top:5px;left:5px;background:#fff;font-size:9px;padding:2px 5px;border-radius:5px}
+
+.sidebar.brand-light{color:#17231b}.sidebar.brand-light .brand span,.sidebar.brand-light .navtitle{color:#334438}.sidebar.brand-light .navlink{color:#17231b}.brand img{object-fit:contain;border-radius:6px}

@@ -1,4 +1,4 @@
-import {validateCatalogue,defaultCatalogue} from '../public/module-config.js';
+import {validateBranding,validateCatalogue,defaultCatalogue} from '../public/module-config.js';
 import {commerceRoute,publishCatalogue,catalogueStatus,afterStockWrite} from './commerce.mjs';
 import { createBusinessAPI } from '../public/domain.js';
 import seed from '../public/seed.js';
@@ -111,6 +111,7 @@ function requireAdmin(member) {
 
 function validateSettings(input,current=defaultSettings) {
   const next={...current};
+  if(Object.hasOwn(input,'branding'))next.branding=validateBranding(input.branding);
   if(Object.hasOwn(input,'currency')) {
     if(!['EUR','GBP','USD','CAD','AUD','NZD','CHF','JPY'].includes(input.currency)) fail(400,'Choisissez une devise proposée.');
     next.currency=input.currency;

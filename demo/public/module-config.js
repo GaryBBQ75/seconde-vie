@@ -15,3 +15,10 @@ export function validateCatalogue(input,current=defaultCatalogue){
  for(const [key,max]of Object.entries({intro:500,contact_email:254,address:500,hours:500}))if(Object.hasOwn(input,key)){if(typeof input[key]!=='string'||input[key].length>max)throw Object.assign(new Error('Vérifiez les informations du catalogue.'),{status:400});result[key]=input[key].trim();}
  if(result.contact_email&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(result.contact_email))throw Object.assign(new Error('E-mail public invalide.'),{status:400});return result;
 }
+
+export function validateBranding(input){
+ if(!input||typeof input!=='object'||!/^#[0-9a-f]{6}$/i.test(input.color||''))throw Object.assign(new Error('Choisissez une couleur valide.'),{status:400});
+ const logo=input.logo||'';
+ if(typeof logo!=='string'||logo.length>370000||(logo&&!/^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(logo)))throw Object.assign(new Error('Logo invalide. Importez une image.'),{status:400});
+ return {color:input.color,logo};
+}

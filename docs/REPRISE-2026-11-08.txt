@@ -1,0 +1,12 @@
+Reprise du 8 novembre 2026
+
+Publié : conservation de la position du menu latéral ; couleur du menu et logo dans Réglages ; validation partagée de l'identité visuelle ; capture réelle de la démo, explications de migration et statut tarifaire sur la présentation publique.
+
+Déjà présents et couverts par les tests : modules activables, stock, réception rapide, photos compressées, catalogue public, brouillons Shopify/WooCommerce, export eBay, import CSV, planning, relais caisse et rôles.
+
+Vérification : 115 tests applicatifs, 3 tests catalogue. Vérification navigateur de l'enregistrement de la couleur et de la navigation (scroll du menu conservé à 308 px). Capture sur données fictives. Les boutiques réelles et une reprise depuis un logiciel client ne sont pas validées par ces tests.
+
+Positionnement proposé : abonnement par structure, sans facturer chaque bénévole. Hypothèse à chiffrer : 29 euros HT/mois pour un site, 59 euros HT/mois pour plusieurs sites ; services IA plafonnés et reprise complexe sur devis. Ce ne sont pas des tarifs approuvés ni publiés. Démo gratuite, tarif réel à venir sur la page publique.
+Repère GDR : la page officielle affiche 350 euros HT/an monoposte, 700 pour 2-3 postes, 1100 pour 4-9 postes, assistance comprise. Source consultée le 8 novembre 2026 : https://www.gdr.coop/presentation-du-logiciel/ . Sa plaquette PDF affiche des montants différents et plus anciens : ne pas reprendre le PDF comme tarif actuel. Avantage à démontrer : prise en main, mobilité et continuité des fiches, plutôt qu'une affirmation non prouvée de meilleur prix.
+
+Points à terminer avant une commercialisation complète : validation du tarif, conditions de service et assistance, vérification des exigences de caisse selon usage, tests sur boutiques marchandes et téléphone physique, audit exhaustif de tous les rôles et parcours, essai d'import avec un export réel anonymisé. eBay reste un export, pas un connecteur vendeur. Les commandes distantes ne remontent pas automatiquement. La référence exacte du site au slider n'a pas été identifiée dans cette reprise.

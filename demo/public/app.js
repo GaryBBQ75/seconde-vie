@@ -78,7 +78,7 @@ function categoryAppearance(name) {
 }
 const categoryTile = name => tile(...categoryAppearance(name));
 
-const brand = () => '<div class="brand"><img src="/mark.svg" alt=""><div><strong>seconde vie</strong><span>Votre ressourcerie au quotidien</span></div></div>';
+const brand = () => `<div class="brand"><img src="${esc(config?.branding?.logo||'/mark.svg')}" alt=""><div><strong>${esc(config?.branding?.logo ? me?.org_name||'seconde vie' : 'seconde vie')}</strong><span>Votre ressourcerie au quotidien</span></div></div>`;
 const macKeys = /Mac|iPad|iPhone/.test(navigator.platform || '');
 const shortcutKeys = key => keyboardKeys(key,macKeys);
 const keyHint = key => '<kbd class="shortcut-key" aria-hidden="true">'+shortcutLabel(key,macKeys)+'</kbd>';
@@ -245,6 +245,7 @@ window.addEventListener('popstate', () => { if (me) go(location.hash.slice(1), t
 
 const nav = (pages) => pages.filter(([key]) => canOpen(me,key)).map(([key, sym]) => `<a href="#${key}" class="navlink ${page === key ? 'active' : ''}" data-page="${key}" aria-label="${pageNames[key]}" title="${pageNames[key]}" ${page === key ? 'aria-current="page"' : ''}>${icon(sym,17)}<span>${pageNames[key]}</span></a>`).join('');
 function render(draft) {
+  const sidebarScroll = document.getElementById('sidebar')?.scrollTop || 0;
   planningCleanup?.();planningCleanup=null;
   endScan();
   persistEntry=null;
@@ -265,6 +266,13 @@ function render(draft) {
       </button></div></header>
     <main class="content ${page === 'accueil' ? 'receiving-content' : ''}" id="main"></main>
     <nav class="mobile-nav" aria-label="Actions terrain">${quickNav}</nav></div></div>`;
+  const sidebar=document.getElementById('sidebar');
+  sidebar.scrollTop = sidebarScroll;
+  if(/^#[0-9a-f]{6}$/i.test(config?.branding?.color||'')) {
+    sidebar.style.backgroundColor=config.branding.color;
+    const rgb=config.branding.color.slice(1).match(/../g).map(v=>parseInt(v,16)/255).map(v=>v<=.04045?v/12.92:((v+.055)/1.055)**2.4);
+    sidebar.classList.toggle('brand-light',.2126*rgb[0]+.7152*rgb[1]+.0722*rgb[2]>.179);
+  }
   document.querySelectorAll('[data-page]').forEach(a => a.addEventListener('click', e => {
     if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
     e.preventDefault();

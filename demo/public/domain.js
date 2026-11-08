@@ -1,5 +1,5 @@
 import {modules} from './modules.js';
-import {validateCatalogue} from './module-config.js';
+import {validateBranding,validateCatalogue} from './module-config.js';
 import {cleanPricingEvidence} from './pricing-feedback.js';
 import {cleanVisualCondition,functionalityOptions} from './condition.js';
 import { organisations as defaultOrganisations, demoPhoto, hasRole, roleNames } from './permissions.js';
@@ -527,7 +527,7 @@ function requestDemo(path, { method = 'GET', body } = {}) {
   }
   let result;
   if (resource === 'me') return me;
-  if(resource==='settings'){requireRole(me,'admin');if(shared)error(405,'Utilisez les réglages partagés.');state.settings??={};if(body.modules){if(!Array.isArray(body.modules)||body.modules.some(key=>!Object.hasOwn(modules,key)))error(400,'Module inconnu.');state.settings.modules=[...new Set(body.modules)];}if(body.catalogue)state.settings.catalogue=validateCatalogue(body.catalogue,state.settings.catalogue);for(const key of ['currency','locale','country','timeZone','origins','intake'])if(Object.hasOwn(body,key))state.settings[key]=body[key];save(state,identity.org);return {ok:true};}
+  if(resource==='settings'){requireRole(me,'admin');if(shared)error(405,'Utilisez les réglages partagés.');state.settings??={};if(body.branding)state.settings.branding=validateBranding(body.branding);if(body.modules){if(!Array.isArray(body.modules)||body.modules.some(key=>!Object.hasOwn(modules,key)))error(400,'Module inconnu.');state.settings.modules=[...new Set(body.modules)];}if(body.catalogue)state.settings.catalogue=validateCatalogue(body.catalogue,state.settings.catalogue);for(const key of ['currency','locale','country','timeZone','origins','intake'])if(Object.hasOwn(body,key))state.settings[key]=body[key];save(state,identity.org);return {ok:true};}
   if(resource==='commerce'){requireRole(me,'stock');if(method!=='GET')error(400,'Démonstration : connectez vos boutiques dans l’espace partagé. Aucun identifiant enregistré.');return {providers:['shopify','woocommerce'].map(provider=>({provider,connected:false,enabled:false,links:{}})),catalogue:null};}
   if(['catalogue-status','catalogue-publish'].includes(resource)){requireRole(me,'stock');return {url:'',count:state.stock.filter(row=>row.web_visible&&row.state==='pret').length,pending:0,demo:true};}
   if (resource === 'config') return {currency:'EUR',locale:'fr-FR',country:'FR',timeZone:'Europe/Paris',origins:['Apport volontaire','Collecte à domicile','Collecte partenaire','Déchèterie','Autre'],modules:Object.keys(modules),intake:{price:false,photos:true,reference:false,note:false},...seed.config,...state.settings,demo:!shared,customCategories:state.customCategories ?? []};

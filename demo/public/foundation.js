@@ -1,3 +1,4 @@
+import {compressProductPhoto} from './product-photo.js';
 import {moduleOptions} from './module-config.js';
 import { modules } from './modules.js';
 
@@ -50,8 +51,11 @@ export function corePages({api,esc,field,input,button,formEnd,formSubmit,showDia
   }
 
   function settingsPage(main) {
+    let brandLogo=config.branding?.logo||'';
     main.innerHTML=header('Réglages de la ressourcerie','Adaptez la saisie et les outils aux besoins de votre équipe.')
       +`<p><a href="https://seconde-vie-catalogue.gary-legrill.chatgpt.site/" target="_blank" rel="noopener">Voir la page de présentation de Seconde Vie ↗</a></p><form id="core-settings" class="surface stack"><h2>Votre structure</h2>${field('Nom',input('name',`required maxlength="100" value="${esc(me.org_name)}"`))}
+      <fieldset><legend>Votre identité</legend>${field('Couleur du menu',input('brand_color',`type="color" value="${esc(config.branding?.color||'#20382c')}"`))}
+      ${field('Logo de la ressourcerie','<input type="file" id="brand-logo" accept="image/jpeg,image/png,image/webp">')}<p class="help">L’image est optimisée avant enregistrement.</p><button type="button" class="btn" id="brand-reset">Retirer le logo</button><p id="brand-status" role="status"></p></fieldset>
       ${field('Pays (code à deux lettres)',input('country',`required pattern="[A-Z]{2}" maxlength="2" value="${esc(config.country)}"`))}
       <div class="form-row">${field('Devise',`<select name="currency">${['EUR','GBP','USD','CAD','AUD','NZD','CHF','JPY'].map(value=>option(value,value,config.currency)).join('')}</select>`)}
       ${field('Formats régionaux',`<select name="locale">${['fr-FR','en-GB','en-US','de-DE','es-ES','it-IT'].map(value=>option(value,value,config.locale)).join('')}</select>`)}</div>
@@ -69,10 +73,12 @@ export function corePages({api,esc,field,input,button,formEnd,formSubmit,showDia
       <div class="page-actions">${button('Exporter une sauvegarde','download','core-backup')}${button('Restaurer une sauvegarde','upload','core-restore')}${button('Versions avant restauration','book','core-snapshots')}</div><div id="core-snapshots-list"></div>
       <input type="file" id="core-restore-file" accept="application/json,.json" hidden><div id="core-backup-status" role="status"></div></section>
       <section class="surface stack"><h2>Historique de l’espace</h2>${button('Afficher les dernières opérations','book','core-audit')}<div id="core-audit-list"></div></section>`;
+    main.querySelector('#brand-logo').addEventListener('change',async e=>{const save=main.querySelector('#core-settings [type="submit"]');try{if(!e.target.files[0])return;if(save)save.disabled=true;brandLogo=await compressProductPhoto(e.target.files[0]);main.querySelector('#brand-status').textContent='Logo prêt. Enregistrez les réglages.';}catch(error){main.querySelector('#brand-status').textContent=error.message;}finally{if(save)save.disabled=false;}});
+    main.querySelector('#brand-reset').addEventListener('click',()=>{brandLogo='';main.querySelector('#brand-logo').value='';main.querySelector('#brand-status').textContent='Logo retiré. Enregistrez les réglages.';});
     main.querySelectorAll('[data-module-card]').forEach(card=>card.querySelector('input').addEventListener('change',event=>{card.classList.toggle('is-enabled',event.target.checked);card.querySelector('[data-module-state]').textContent=event.target.checked?'À activer · enregistrez':'À désactiver · enregistrez';}));
     if(demo)main.querySelectorAll('#core-backup,#core-restore,#core-snapshots,#core-audit').forEach(node=>node.closest('section').hidden=true);
     formSubmit('core-settings',async data=>{
-      await api('/settings',{method:'PATCH',body:{...Object.fromEntries(data),origins:data.get('origins').split('\n').map(value=>value.trim()).filter(Boolean),modules:data.getAll('modules'),intake:Object.fromEntries(['price','photos','reference','note'].map(key=>[key,data.getAll('intake').includes(key)]))}});
+      await api('/settings',{method:'PATCH',body:{...Object.fromEntries(data),branding:{color:data.get('brand_color'),logo:brandLogo},origins:data.get('origins').split('\n').map(value=>value.trim()).filter(Boolean),modules:data.getAll('modules'),intake:Object.fromEntries(['price','photos','reference','note'].map(key=>[key,data.getAll('intake').includes(key)]))}});
       await changed('Réglages enregistrés.');
     });
     main.querySelector('#core-backup').addEventListener('click',async()=>{
