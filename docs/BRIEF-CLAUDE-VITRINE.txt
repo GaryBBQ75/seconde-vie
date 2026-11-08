@@ -1,0 +1,89 @@
+BRIEF POUR CLAUDE — REFONTE DU SITE VITRINE SECONDE VIE
+Date : 8 novembre 2026
+
+MISSION
+Retravailler le site de présentation commerciale de Seconde Vie, une application de gestion pour les ressourceries et recycleries. Le problème actuel : on ne comprend pas assez vite qu’il s’agit d’un logiciel. L’ambiance est agréable mais le produit n’est pas suffisamment visible. Dès les premières secondes, comprendre : « C’est une application pour gérer ma ressourcerie, voici à quoi elle ressemble et comment elle aide mon équipe. »
+Travailler le design, l’UX/UI et les textes ; utiliser les skills design et UX/UI disponibles. Inspecter le projet avant de modifier. Réaliser la refonte, pas seulement proposer des recommandations.
+
+ACCÈS ET SOURCES
+Dépôt : https://github.com/GaryBBQ75/seconde-vie
+Site vitrine actuel : https://seconde-vie-catalogue.gary-legrill.chatgpt.site/
+Application : https://seconde-vie-atelier.gary-legrill.chatgpt.site/
+Démonstration fictive : https://seconde-vie-atelier.gary-legrill.chatgpt.site/?demo=1
+Lire AGENTS.md, README.md et docs/REPRISE-2026-11-08.txt.
+Le site vitrine et le catalogue public sont dans catalogue/. L’application hébergée est dans demo/. Le serveur PostgreSQL historique est à la racine : préserver son fonctionnement.
+Fichiers principaux de présentation : catalogue/public/index.html, presentation.css et presentation.js. Une capture réelle existe dans catalogue/public/assets/app-stock.png.
+Attention : le site public héberge à la fois la présentation du logiciel et les catalogues de produits des structures. Préserver les routes catalogue, l’API et la publication des produits. Ne pas confondre site commercial du logiciel et boutique d’une ressourcerie.
+
+RÉFÉRENCE VALIDÉE PAR GARY
+https://www.lightspeedhq.com/
+C’est bien la page d’accueil, PAS la page /pos/retail/scanner/.
+Gary apprécie le haut de page : un appareil / écran central qui reste le point d’attention, des rubriques et un décor en arrière-plan qui évolue. La page consultée comporte notamment des rubriques Wholesale, AI, Inventory, Insights et Payments.
+Ouvrir et observer personnellement la référence sur ordinateur et mobile : ne pas supposer son animation à partir d’un texte ou d’une capture.
+S’inspirer du principe narratif et de la place centrale du produit ; créer une composition originale. Ne pas reprendre leur code, leurs images, leur identité ni leur discours de grande enseigne.
+
+DIRECTION : L’APPLICATION AU MILIEU DE LA VIE DE LA RESSOURCERIE
+Un logiciel sérieux, lisible, accueillant, facile à approcher. Une esthétique contemporaine mais familière ; ni administration vieillotte ni startup futuriste.
+Des objets d’occasion, des matières vécues, des mains au travail, des échanges et une équipe. Montrer la valeur des objets et du travail humain, sans misérabilisme ni discours explicite sur l’insertion.
+Éviter les grands slogans écologiques abstraits, les interfaces minuscules illisibles, les icônes partout et les séries de cartes génériques.
+Palette sobre et chaleureuse à explorer : écru, vert profond, bois, petite touche terre cuite. Bon contraste, typographie claire. Garder une identité propre à Seconde Vie.
+
+PREMIER ÉCRAN : EXPLICITE ET CENTRÉ SUR LE LOGICIEL
+Afficher clairement « Le logiciel de gestion des ressourceries et recycleries ».
+Proposition de titre à améliorer : « Toute votre ressourcerie, dans une application simple. »
+Sous-titre possible : « Réception des dons, tri, stock et ventes : une même fiche accompagne chaque objet, et votre équipe retrouve les informations utiles à chaque étape. »
+CTA principal : « Essayer la démo ». CTA secondaire : « Voir l’application » vers les captures.
+Montrer tout de suite une vraie interface, suffisamment grande pour être comprise : écran principal sur ordinateur/tablette, avec un téléphone en complément si utile. Éviter de laisser croire qu’il s’agit uniquement d’une app mobile ou d’un scanner.
+La promesse doit rester lisible sans animation et sans devoir faire défiler.
+
+ANIMATION DU HAUT DE PAGE
+Proposer 4 étapes : Recevoir / Trier et préparer / Retrouver en stock / Vendre et transmettre.
+L’écran de l’app reste l’ancrage central. Le contexte évolue autour : arrivée d’un don, atelier, rayonnage, comptoir. L’interface affichée change avec l’étape et montre une fonction réelle.
+Chaque rubrique = un geste métier, une capture et un bénéfice concret. Exemple : « Retrouvez l’objet et son emplacement ».
+Privilégier les transitions douces et une interaction manuelle claire. Si lecture automatique : pause, pas de mouvement agressif ni de changement perturbant la lecture. Respecter prefers-reduced-motion. Navigation clavier et focus visibles. Pas de défilement capturé.
+Sur mobile : conserver la compréhension et une capture lisible, simplifier l’animation plutôt que miniaturiser la scène entière.
+
+PLUS DE CAPTURES RÉELLES
+Préparer au minimum 4 à 6 vues pertinentes depuis la démo :
+- réception d’un objet / photos et fiche proposée ;
+- stock avec photos, prix et emplacement ;
+- fiche d’un objet et étapes de traitement ;
+- planning de l’équipe ;
+- caisse / relais entre collègues si la vue est lisible ;
+- réglages des modules ou catalogue public.
+Utiliser uniquement des données fictives. Ne pas exposer de noms, coordonnées ou données réelles.
+Captures propres, cadrées, optimisées, avec légendes orientées usage. Prévoir un agrandissement accessible pour lire les détails. Ne pas recréer une fausse interface ou inventer des fonctions pour embellir les écrans.
+Associer les photos humaines aux captures ; l’ambiance accompagne l’application sans la masquer. Utiliser des images autorisées et documenter leur provenance.
+
+CONTENU ET PARCOURS
+1. Présentation explicite de l’app + démonstration visuelle centrale.
+2. Une journée concrète dans la ressourcerie, avec captures et bénéfices.
+3. Modules à choisir selon les besoins, sans transformer la page en catalogue technique.
+4. Travail en équipe : relais, informations partagées, simplicité des gestes.
+5. Changer de logiciel : expliquer la reprise de stock CSV et les vérifications nécessaires.
+6. Tarifs lisibles et honnêtes, puis FAQ et accès à la démo.
+Garder les sections qui apportent une information nouvelle. Les principaux bénéfices : moins de ressaisie, moins de recherches, transmission plus simple, outils adaptés au poste.
+Ne pas inventer de chiffres de gain de temps, témoignages, références clients ou badges de certification.
+
+RÉALITÉ PRODUIT À RESPECTER
+Présents : réception, tri, stock, photos optimisées, étiquettes, transferts, rapports, rôles, modules configurables, atelier, collectes, planning, caisse interne, devis/factures, adhésions, catalogue public, couleur du menu et logo.
+Photos : maximum 1280 px sur le grand côté, cible 160 Ko, plafond 270 Ko ; pas nécessaire d’afficher ces détails techniques dans la page commerciale.
+Shopify / WooCommerce : connecteurs qui préparent des brouillons et gèrent certains échanges de disponibilité. Pas de promesse de synchronisation exhaustive en temps réel ; commandes externes non importées automatiquement en caisse.
+eBay : export CSV préparatoire, pas un connecteur vendeur opérationnel.
+L’analyse photo propose, l’opérateur vérifie. Elle ne valide pas le fonctionnement ni la sécurité d’un objet.
+Reprise : import CSV de stock existant. Ne pas promettre une migration universelle, automatique et complète des historiques, comptes et photos.
+Ne pas présenter la caisse comme certifiée ni annoncer un terminal de paiement intégré.
+La démonstration contient des données locales fictives ; elle est distincte de l’espace partagé.
+
+TARIFS
+Gary n’a pas encore validé de modèle économique.
+La démonstration est gratuite. Le tarif commercial reste à définir.
+Une hypothèse interne figure dans le document de reprise : abonnement par structure, sans facturer chaque bénévole. Ce n’est pas une offre approuvée.
+Proposer une recommandation tarifaire séparée du site ; ne pas publier de prix inventé, de gratuité illimitée ou d’engagement de support non convenu.
+
+LIVRAISON ET VÉRIFICATIONS
+Livrer une refonte fonctionnelle du site vitrine, ses captures et ressources optimisées, et un résumé des choix UX.
+Vérifier ordinateur, tablette et mobile, liens, CTA, clavier, contrastes, réduction des animations et absence de débordement. Les captures doivent rester lisibles, le premier écran doit expliquer le produit sans interaction.
+Préserver le catalogue public et toutes les fonctions métier de l’app.
+Mettre les changements sur GitHub avec un commit clair ; ne pas écraser les mises à jour d’une autre conversation.
+GitHub et Sites sont deux destinations distinctes : un commit GitHub ne publie pas automatiquement les sites. Si l’accès au déploiement Sites n’est pas disponible, livrer le code et indiquer explicitement que la publication reste à faire.
