@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Connexion · Seconde Vie</title>
+  <link rel="icon" type="image/svg+xml" href="/mark.svg">
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <main class="content sign-in core-setup">
+    <img src="/mark.svg" width="48" height="48" alt="">
+    <h1>Seconde Vie Atelier</h1>
+    <form class="stack" method="post" action="/auth/login">
+      <label class="field">E-mail<input name="email" type="email" autocomplete="username" maxlength="254" required></label>
+      <label class="field">Mot de passe<input name="password" type="password" autocomplete="current-password" maxlength="250" required></label>
+      <button type="submit" class="btn primary">Se connecter</button>
+    </form>
+    <a href="/?demo=1">Essayer avec des données fictives</a>
+  </main>
+</body>
+</html>

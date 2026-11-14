@@ -22,19 +22,19 @@ async function locked(env,workspace,provider,fn){
  try{return await fn();}finally{await env.DB.prepare("DELETE FROM sv_records WHERE workspace_id=? AND type='commerce_private' AND id=? AND json_extract(data,'$.id')=?").bind(workspace,key,id).run();}
 }
 function summary(row,provider){return {provider,connected:Boolean(row?.credentials),enabled:row?.enabled===true,host:row?.host||'',name:row?.name||'',location_id:row?.location_id||'',last_sync:row?.last_sync||'',error:row?.error||'',links:row?.links||{},log:row?.log||[]};}
-async function jsonFetch(url,options={}){
- let response;try{response=await fetch(url,{...options,redirect:'error',signal:AbortSignal.timeout(18000)});}catch{fail(502,'La boutique n’a pas répondu. Vérifiez son adresse et ses accès.');}
+async function jsonFetch(url,options={},transport=fetch){
+ let response;try{response=await transport(url,{...options,redirect:'error',signal:AbortSignal.timeout(18000)});}catch{fail(502,'La boutique n’a pas répondu. Vérifiez son adresse et ses accès.');}
  if(!response.ok)fail(502,response.status===401||response.status===403?'La boutique a refusé les identifiants ou leurs droits.':response.status===429?'La boutique limite les appels. Réessayez plus tard.':'La boutique a refusé l’opération (HTTP '+response.status+').');
  const data=await response.json().catch(()=>null);if(!data)fail(502,'Réponse de la boutique illisible.');return data;
 }
 export function publicAddress(value){if(typeof value!=='string')return false;if(value.includes(':'))return /^[23][a-f0-9]{0,3}:/i.test(value)&&!/^2001:(?:db8|0):/i.test(value);const n=value.split('.').map(Number);return n.length===4&&n.every(v=>Number.isInteger(v)&&v>=0&&v<256)&&n[0]>0&&n[0]<224&&![10,127].includes(n[0])&&!(n[0]===169&&n[1]===254)&&!(n[0]===172&&n[1]>=16&&n[1]<=31)&&!(n[0]===192&&[0,168].includes(n[1]))&&!(n[0]===100&&n[1]>=64&&n[1]<=127)&&!(n[0]===198&&[18,19,51].includes(n[1]))&&!(n[0]===203&&n[1]===0);}
 async function verifyPublicHost(host){const name=new URL(host).hostname,results=await Promise.all(['A','AAAA'].map(type=>jsonFetch('https://cloudflare-dns.com/dns-query?name='+encodeURIComponent(name)+'&type='+type,{headers:{Accept:'application/dns-json'}})));const addresses=results.flatMap(data=>(data.Answer||[]).filter(v=>[1,28].includes(v.type)).map(v=>v.data));if(!addresses.length||addresses.some(v=>!publicAddress(v)))fail(400,'Cette boutique ne correspond pas à une adresse internet publique.');}
-async function woo(row,credentials,path,method='GET',body){await verifyPublicHost(row.host);return jsonFetch(row.host+'/wp-json/wc/v3/'+path,{method,headers:{Authorization:'Basic '+btoa(credentials.key+':'+credentials.secret),'Content-Type':'application/json'},...(body?{body:JSON.stringify(body)}:{})});}
+async function woo(env,row,credentials,path,method='GET',body){if(!env.WOO_FETCH)await verifyPublicHost(row.host);return jsonFetch(row.host+'/wp-json/wc/v3/'+path,{method,headers:{Authorization:'Basic '+btoa(credentials.key+':'+credentials.secret),'Content-Type':'application/json'},...(body?{body:JSON.stringify(body)}:{})},env.WOO_FETCH);}
 async function shop(row,credentials,query,variables={}){const data=await jsonFetch(row.host+'/admin/api/2026-10/graphql.json',{method:'POST',headers:{'X-Shopify-Access-Token':credentials.token,'Content-Type':'application/json'},body:JSON.stringify({query,variables})});if(data.errors?.length)fail(502,'Shopify refuse cet appel. Vérifiez les droits produits, stocks et emplacements.');return data.data;}
 function checked(payload){if(!payload||payload.userErrors?.length)fail(409,'La boutique signale un conflit ou une information produit manquante. Vérifiez la fiche dans la boutique puis réessayez.');return payload;}
-async function probe(provider,row,credentials,currency){
+async function probe(env,provider,row,credentials,currency){
  if(provider==='woocommerce'){
-  const settings=await woo(row,credentials,'settings/general/woocommerce_currency');if(settings.value!==currency)fail(409,'La devise de la boutique diffère de celle de la ressourcerie.');await woo(row,credentials,'products?per_page=1');return {name:new URL(row.host).hostname};
+  const settings=await woo(env,row,credentials,'settings/general/woocommerce_currency');if(settings.value!==currency)fail(409,'La devise de la boutique diffère de celle de la ressourcerie.');await woo(env,row,credentials,'products?per_page=1');return {name:new URL(row.host).hostname};
  }
  const data=await shop(row,credentials,'query { shop { name currencyCode } locations(first:20) { nodes { id name isActive } } }');if(data.shop.currencyCode!==currency)fail(409,'La devise de la boutique diffère de celle de la ressourcerie.');const location=data.locations.nodes.find(v=>v.isActive&&(!row.location_id||row.location_id===v.id));if(!location)fail(400,'Choisissez un emplacement Shopify actif.');return {name:data.shop.name,location_id:location.id};
 }
@@ -48,14 +48,14 @@ export async function publishCatalogue(env,workspace,state,{upload=true}={}){
     for(const source of itemPhotos(row)){
      if(!photos[source]&&upload&&budget>0&&source.startsWith('/api/core/photos/'+workspace.id+'/')){
       const object=await env.BUCKET.get(workspace.id+'/'+source.split('/').pop());if(!object)continue;const bytes=new Uint8Array(await new Response(object.body).arrayBuffer()),hash=hex(new Uint8Array(await crypto.subtle.digest('SHA-256',bytes)));
-      await jsonFetch(env.CATALOGUE_URL+'/api/update/'+workspace.id+'/media/'+hash,{method:'PUT',headers:{Authorization:'Bearer '+env.CATALOGUE_WRITE_KEY,'Content-Type':'image/jpeg'},body:bytes});photos[source]=hash;budget--;
+      await jsonFetch(env.CATALOGUE_URL+'/api/update/'+workspace.id+'/media/'+hash,{method:'PUT',headers:{Authorization:'Bearer '+env.CATALOGUE_WRITE_KEY,'Content-Type':'image/jpeg'},body:bytes},env.CATALOGUE_FETCH);photos[source]=hash;budget--;
      }
      if(photos[source])hashes.push(photos[source]);else if(upload)incomplete=true;
     }
     if(incomplete){pending++;continue;}
     items.push({id:row.id,title:row.title,code:row.code,category:row.category,description:row.description,condition:row.condition,price_cents:row.price_cents,quantity:onlineQuantity(row),site_name:row.site_name,photos:hashes});
    }
-   const data=await jsonFetch(env.CATALOGUE_URL+'/api/update/'+workspace.id,{method:'PUT',headers:{Authorization:'Bearer '+env.CATALOGUE_WRITE_KEY,'Content-Type':'application/json'},body:JSON.stringify({...state.settings.catalogue,name:workspace.name,currency:state.settings.currency,revision:workspace.revision,items})});
+   const data=await jsonFetch(env.CATALOGUE_URL+'/api/update/'+workspace.id,{method:'PUT',headers:{Authorization:'Bearer '+env.CATALOGUE_WRITE_KEY,'Content-Type':'application/json'},body:JSON.stringify({...state.settings.catalogue,name:workspace.name,currency:state.settings.currency,revision:workspace.revision,items})},env.CATALOGUE_FETCH);
    Object.assign(record,{photos,last_sync:now(),error:'',pending,count:data.count,url:env.CATALOGUE_URL+'/catalogue.html?r='+workspace.id});await savePrivate(env,workspace.id,'catalogue',record);return {url:record.url,count:data.count,pending,last_sync:record.last_sync};
   }catch(error){record.error=error.message;record.photos=photos;await savePrivate(env,workspace.id,'catalogue',record);throw error;}
  });
@@ -66,11 +66,11 @@ async function syncProduct(env,workspace,provider,record,row){
  if(!existing&&!quantity)fail(400,'Sélectionnez un objet prêt, tarifé et affiché au catalogue.');
  if(itemPhotos(row).length&&images.length!==itemPhotos(row).length&&quantity)fail(409,'Publiez d’abord les photos dans le catalogue public, puis relancez l’envoi.');
  if(provider==='woocommerce'){
-  let remote=existing?await woo(record,credentials,'products/'+existing.external_id):null;
-  if(!remote){const matches=await woo(record,credentials,'products?sku='+encodeURIComponent(sku));remote=matches.find(v=>v.sku===sku);if(remote&&!remote.meta_data?.some(v=>v.key==='_seconde_vie_id'&&v.value===row.id))fail(409,'Une référence identique existe déjà dans WooCommerce.');}
+  let remote=existing?await woo(env,record,credentials,'products/'+existing.external_id):null;
+  if(!remote){const matches=await woo(env,record,credentials,'products?sku='+encodeURIComponent(sku));remote=matches.find(v=>v.sku===sku);if(remote&&!remote.meta_data?.some(v=>v.key==='_seconde_vie_id'&&v.value===row.id))fail(409,'Une référence identique existe déjà dans WooCommerce.');}
   if(existing&&quantity>0&&remote.stock_quantity!==existing.quantity)fail(409,'Le stock a changé dans WooCommerce. Vérifiez une éventuelle vente en ligne avant de renvoyer cet objet.');
   const body={name:row.title,description:escape(productDescription(row)),regular_price:(row.price_cents/100).toFixed(2),manage_stock:true,stock_quantity:quantity,stock_status:quantity?'instock':'outofstock',backorders:'no',...(remote?{}:{type:'simple',status:'draft',sku,meta_data:[{key:'_seconde_vie_id',value:row.id}]}),...(quantity&&images.length&&existing?.photos_signature!==images.join('|')?{images:images.map(src=>({src,alt:row.title}))}:{})};
-  const saved=await woo(record,credentials,'products'+(remote?'/'+remote.id:''),remote?'PUT':'POST',body);if(!saved.id)fail(502,'WooCommerce n’a pas confirmé la fiche.');return {external_id:saved.id,quantity,photos_signature:images.join('|'),status:saved.status==='draft'?'Brouillon envoyé':'Fiche mise à jour',updated_at:now()};
+  const saved=await woo(env,record,credentials,'products'+(remote?'/'+remote.id:''),remote?'PUT':'POST',body);if(!saved.id)fail(502,'WooCommerce n’a pas confirmé la fiche.');return {external_id:saved.id,quantity,photos_signature:images.join('|'),status:saved.status==='draft'?'Brouillon envoyé':'Fiche mise à jour',updated_at:now()};
  }
  let remote=existing?await shop(record,credentials,'query($id:ID!,$location:ID!){ product(id:$id){ id status variants(first:1){ nodes { id inventoryItem { id inventoryLevel(locationId:$location){ quantities(names:["available"]){ name quantity } } } } } } }',{id:existing.external_id,location:record.location_id}):null;
  let product=remote?.product;
@@ -97,7 +97,7 @@ export async function commerceRoute({env,workspace,state,me,path,method,body}){
   if(method==='PUT'&&!action){
    const host=commerceHost(body.host,provider),credentials=provider==='shopify'?{token:body.token}:{key:body.key,secret:body.secret};if(Object.values(credentials).some(v=>typeof v!=='string'||v.length<10||v.length>4096||/[\r\n]/.test(v)))fail(400,'Renseignez les identifiants de la boutique.');
    if(row?.host&&row.host!==host&&Object.keys(row.links||{}).length)fail(409,'Déconnectez l’ancienne boutique avant de changer son adresse.');
-   const candidate={host,location_id:typeof body.location_id==='string'?body.location_id:''},info=await probe(provider,candidate,credentials,state.settings.currency);row={...row,...candidate,...info,credentials:await seal(credentials,env.COMMERCE_ENCRYPTION_KEY,workspace.id),enabled:true,links:row?.links||{},log:row?.log||[],error:''};await savePrivate(env,workspace.id,provider,row);return summary(row,provider);
+   const candidate={host,location_id:typeof body.location_id==='string'?body.location_id:''},info=await probe(env,provider,candidate,credentials,state.settings.currency);row={...row,...candidate,...info,credentials:await seal(credentials,env.COMMERCE_ENCRYPTION_KEY,workspace.id),enabled:true,links:row?.links||{},log:row?.log||[],error:''};await savePrivate(env,workspace.id,provider,row);return summary(row,provider);
   }
   if(!row?.credentials)fail(409,'Connectez d’abord cette boutique.');
   if(method==='PATCH'&&!action){row.enabled=body.enabled===true;await savePrivate(env,workspace.id,provider,row);return summary(row,provider);}

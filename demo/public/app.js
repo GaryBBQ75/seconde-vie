@@ -31,6 +31,7 @@ document.addEventListener('error',event=>{if(event.target?.matches?.('img[data-s
 const root = document.querySelector('#app');
 const dialog = document.querySelector('#dialog');
 const toastArea = document.querySelector('#toast');
+const selfHosted = document.documentElement.hasAttribute('data-self-hosted');
 const moduleForPage=optionalModuleForPage;
 const canOpen=(member,key)=>baseCanOpen(member,key) && (!moduleForPage[key] || isModuleEnabled(config,moduleForPage[key]));
 const pageNames = { documents:'Devis et factures', adhesions:'Adhésions', imports:'Importer du stock', indisponible:'Accès aux postes', contacts:'Contacts', reglages:'Réglages', accueil: 'Réception', scanner: 'Scanner', caisse: 'Caisse', stock: 'Stock', controle: 'À vérifier', transferts: 'Transferts', planning: 'Planning', tournees: 'Tournées', rapports: 'Rapports', registre: 'Préparer le registre', boutiques:'Vente en ligne', vitrine: 'Catalogue', equipe: 'Équipe', sites: 'Sites et zones' };
@@ -2349,6 +2350,7 @@ async function switchProfile() {
       ${me.cash_station ? button('Revenir à mon profil','users','core-leave-station') : ''}
       ${workspaces.length>1 ? field('Changer d’espace',`<select id="core-workspace">${workspaces.map(row=>option(row.id,row.name,me.org)).join('')}</select>`) : ''}
       <p class="help">Le relais en caisse attribue les ventes à la personne choisie. Les droits restent liés au compte connecté.</p>
+      ${selfHosted ? '<form method="post" action="/auth/logout"><button class="btn" type="submit">Se déconnecter</button></form>' : ''}
       <a href="/?demo=1">Explorer la démonstration séparée</a></div>`);
     on('core-leave-station',async()=>{leaveStation();closeDialog();await startWorkspace(true);});
     on('core-workspace',async event=>{selectWorkspace(event.target.value);closeDialog();await startWorkspace(true);},'change');
@@ -2368,32 +2370,14 @@ async function init() {
   try {
     if(!demoMode) {
       const initial=await api('/bootstrap');workspaces=initial.workspaces;
-      if(!workspaces.length) {setupWorkspace({root,api,onReady:async id=>{selectWorkspace(id);await function updateSyncBadge() {
-  const node=document.getElementById('core-sync');if(!node)return;
-  const labels={loading:'Synchronisation…',synced:'Synchronisé',offline:'Hors connexion',conflict:'Actualiser',error:'Réessayer',updates:'Mises à jour disponibles'};
-  node.textContent=labels[syncStatus] || labels.synced;node.dataset.status=syncStatus;
-}
-window.addEventListener('core-sync',event=>{syncStatus=event.detail.status;updateSyncBadge();});
-async function syncWorkspace() {
-  if(!me || demoMode)return;
-  if(document.querySelector('[data-assist-form][data-dirty]'))throw new Error('Enregistrez ou quittez l’identification avant d’actualiser cet écran.');
-  if(page!=='accueil' && document.querySelector('form[data-dirty]'))throw new Error('Enregistrez vos modifications avant d’actualiser cet écran.');
-  await persistEntry?.();await refresh();render();notice('Espace actualisé.');
-}
-for(const event of ['input','change'])document.addEventListener(event,event=>{
-  const form=event.target.closest?.('form');if(form)form.dataset.dirty='true';
-});
-if(!demoMode)setInterval(async()=>{
-  if(!me || document.hidden)return;
-  try {
-    const value=await api('/revision');
-    if(value.revision<=currentRevision())return;
-    const editing=Boolean(stopCamera||stopObjectCamera) || document.querySelector('[data-planning-busy="1"]') || dialog.hasAttribute('open') || document.querySelector('form[data-saving]') || document.querySelector('form[data-dirty]');
-    if(editing) {syncStatus='updates';updateSyncBadge();}
-    else {await refresh();render();}
-  } catch { /* The sync badge already explains a network or access failure. */ }
-},10000);
-init();}});return;}
+      if(!workspaces.length) {
+        setupWorkspace({root,api,onReady:async id=>{
+          selectWorkspace(id);
+          workspaces=(await api('/bootstrap')).workspaces;
+          await startWorkspace();
+        }});
+        return;
+      }
       const selected=sessionStorage.getItem('seconde-vie-workspace');
       if(!workspaces.some(row=>row.id===selected))selectWorkspace(workspaces[0].id);
     }
@@ -2401,6 +2385,7 @@ init();}});return;}
   } catch (error) {
     if (error.status === 401) {
       if(demoMode) {await api('/logout',{method:'POST'});showSignIn();}
+      else if(selfHosted) location.replace('/auth/login');
       else root.innerHTML='<main class="content sign-in"><h1>Connectez-vous à votre espace</h1><p>Utilisez votre compte personnel pour retrouver les données partagées.</p><a class="btn primary" href="/signin-with-chatgpt?returnTo=%2F" target="_top">Se connecter</a><a href="/?demo=1">Explorer la démonstration</a></main>';
       return;
     }

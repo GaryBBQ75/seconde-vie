@@ -28,7 +28,17 @@ Le rôle Responsable ajoute les membres, cumule leurs fonctions, crée les sites
 - **[Six parcours UX](prototypes/six-parcours.html)**. Télécharger le fichier HTML et l’ouvrir dans un navigateur pour comparer les parcours avec des données d’exemple.
 - **[Brief UX pour Claude](docs/Seconde_Vie_Brief_Claude.pdf)**. Contexte du produit et scénarios communs pour comparer de nouvelles propositions.
 
-## Déployer sur Coolify
+## Déployer la version actuelle sur Coolify
+
+Utilisez la branche `deploy/coolify-ovh` avec **Docker Compose**, la racine du dépôt comme dossier de base et `/compose.coolify.yaml` comme fichier Compose. Configurez le domaine HTTPS de l’application sur le service `app`, port interne `3000`. Utilisez une seule instance du service. Coolify peut proposer un domaine avec son domaine générique. `PUBLIC_ORIGIN` peut fixer l’origine HTTPS retenue, sans chemin.
+
+Avant le premier lancement, définissez dans Coolify `ADMIN_EMAIL`, `ADMIN_NAME` (facultatif) et `ADMIN_PASSWORD` (16 caractères minimum). Connectez-vous et créez votre espace. Une fois le compte créé, retirez le mot de passe initial des variables Coolify. Pour ajouter un membre, attribuez-lui ses droits dans Équipe puis créez le compte local avec le même e-mail depuis le terminal du conteneur. La commande `node demo/self-host/account.mjs <email> "<nom>"` lit le mot de passe sur l’entrée standard. Utilisez une saisie masquée dans le terminal.
+
+Le contrôle d’état répond sur `/health`. Le site vitrine est sur `/vitrine/` et le catalogue de chaque structure est publié depuis l’application. La démo `/?demo=1` utilise des profils fictifs. La reconnaissance Eden AI et les fournisseurs de recherche ou de terminaux lisent les variables serveur correspondantes.
+
+Sauvegardez le volume `seconde_vie_data` lorsque l’instance est arrêtée. Le volume contient les bases SQLite, les comptes, les photos, le catalogue et les clés locales. L’instance démarre sur un espace vide. Une reprise depuis ChatGPT Sites nécessite un transfert des données et des photos, avec correspondance des comptes.
+
+## Déployer le prototype PostgreSQL sur Coolify
 
 Le déploiement initial utilise une instance de l’application par structure. Une structure peut gérer plusieurs sites et leurs zones dans la même base.
 

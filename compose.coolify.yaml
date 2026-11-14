@@ -1,0 +1,30 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: demo/Dockerfile
+    environment:
+      SERVICE_URL_APP_3000: /
+      PUBLIC_ORIGIN: ${PUBLIC_ORIGIN:-}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-}
+      ADMIN_NAME: ${ADMIN_NAME:-Responsable}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+      EDENAI_API_KEY: ${EDENAI_API_KEY:-}
+      EDENAI_VISION_MODEL: ${EDENAI_VISION_MODEL:-}
+      SERPAPI_API_KEY: ${SERPAPI_API_KEY:-}
+      BRAVE_SEARCH_API_KEY: ${BRAVE_SEARCH_API_KEY:-}
+      SUMUP_API_KEY: ${SUMUP_API_KEY:-}
+      SUMUP_MERCHANT_CODE: ${SUMUP_MERCHANT_CODE:-}
+      STRIPE_TERMINAL_API_KEY: ${STRIPE_TERMINAL_API_KEY:-}
+    expose:
+      - "3000"
+    volumes:
+      - seconde_vie_data:/data
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+volumes:
+  seconde_vie_data:
